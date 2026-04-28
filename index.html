@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mandelli & Carvalho — Plataforma de Arquivos</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="screen-login" class="screen active">
+  <div class="login-left">
+    <div class="geo-stripe"></div>
+    <div class="login-left-content">
+      <div class="login-logo-box">
+        <img src="img/logo-white.png" alt="Mandelli & Carvalho" />
+      </div>
+      <div class="login-divider"></div>
+      <div>
+        <div class="login-brand-name">MANDELLI<br>&amp;CARVALHO</div>
+        <div class="login-brand-sub">Engenharia · Arquitetura · Obras</div>
+        <div class="login-brand-desc">
+          Projetos Arquitetônicos,<br>
+          Complementares e Interiores.<br>
+          Execução e Gerenciamento de Obras.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-right">
+    <div class="login-form-wrap">
+      <h1 class="login-title">Plataforma de Arquivos<br>Mandelli e Carvalho</h1>
+      <p class="login-sub" style="margin-bottom:32px;">Acesso exclusivo para a equipe.<br>Entre com sua conta Google.</p>
+
+      <button class="btn-google" onclick="fazerLogin()" id="btn-login">
+        <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Entrar com Google
+      </button>
+
+      <div id="login-error" class="error-msg" style="display:none;margin-top:14px;"></div>
+
+      <div class="access-info">
+        <strong>Acesso restrito</strong>
+        Apenas membros autorizados da equipe Mandelli &amp; Carvalho conseguem acessar esta plataforma.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="screen-app" class="screen">
+  <div class="app-layout">
+
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-img">
+            <img src="img/logo-white.png" alt="M&C" />
+          </div>
+          <div class="sidebar-logo-text">
+            <div class="ln1">MANDELLI&amp;CARVALHO</div>
+            <div class="ln2">Plataforma de Arquivos</div>
+          </div>
+        </div>
+        <div class="sidebar-user">
+          <span class="sidebar-user-name" id="sidebar-username">—</span>
+          <button class="btn-icon-sidebar" onclick="logout()" title="Sair">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M10 11l3-3-3-3M13 8H6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-section-title">Obras</div>
+      <div class="obra-list" id="sidebar-obras">
+        <div class="loading-list">Carregando...</div>
+      </div>
+      <div class="sidebar-footer">
+        <button class="btn-new-obra" onclick="abrirModalNovaObra()">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/>
+          </svg>
+          Nova Obra
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon"><img src="img/logo-terracota.png" alt="" /></div>
+        <h2>Selecione uma obra</h2>
+        <p>Escolha uma obra na lista ao lado ou crie uma nova para visualizar e gerenciar arquivos 3D</p>
+      </div>
+
+      <div id="obra-panel">
+        <div class="obra-header">
+          <div class="obra-header-left">
+            <h2 id="obra-nome-titulo"></h2>
+            <div class="obra-meta-row">
+              <span id="obra-cliente-label" class="meta-tag"></span>
+              <span id="obra-status-label" class="status-badge"></span>
+            </div>
+          </div>
+          <div class="obra-header-actions">
+            <button class="btn-outline terra" onclick="abrirUpload()">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M7 1v8M4 4l3-3 3 3M2 10v2a1 1 0 001 1h8a1 1 0 001-1v-2"/>
+              </svg>
+              Enviar arquivo
+            </button>
+            <button class="btn-outline terra" onclick="abrirNoDrive()" title="Ver pasta no Drive">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
+              </svg>
+              Ver no Drive
+            </button>
+            <button class="btn-outline danger" onclick="excluirObra()">Excluir</button>
+          </div>
+        </div>
+
+        <div class="tabs-row">
+          <button class="tab active" onclick="setTab('viewer', this)">Visualizador 3D</button>
+          <button class="tab" onclick="setTab('arquivos', this)">Arquivos</button>
+          <button class="tab" onclick="setTab('info', this)">Informações</button>
+        </div>
+
+        <div id="tab-viewer" class="tab-content" style="display:flex;">
+          <div class="viewer-wrap">
+            <div id="viewer-empty" class="viewer-empty">
+              <div class="viewer-empty-icon"><img src="img/logo-white.png" alt="" /></div>
+              <p>Nenhum arquivo selecionado</p>
+              <span>Vá em "Arquivos" e clique em Visualizar 3D</span>
+            </div>
+            <canvas id="three-canvas" style="display:none;width:100%;height:100%;"></canvas>
+            <div id="viewer-controls" style="display:none;">
+              <button class="vc-btn" onclick="resetCamera()">⟲</button>
+              <button class="vc-btn" onclick="toggleWireframe()">⊞</button>
+              <button class="vc-btn" onclick="toggleAutoRotate()" id="btn-rotate">▶</button>
+            </div>
+            <div id="viewer-label" style="display:none;" class="viewer-label"></div>
+          </div>
+        </div>
+
+        <div id="tab-arquivos" class="tab-content" style="display:none;">
+          <div class="files-grid" id="files-grid">
+            <div class="loading-files">Carregando arquivos...</div>
+          </div>
+        </div>
+
+        <div id="tab-info" class="tab-content" style="display:none;">
+          <div class="info-form">
+            <div class="info-row"><label>Nome da obra</label><input type="text" id="info-nome" /></div>
+            <div class="info-row"><label>Cliente</label><input type="text" id="info-cliente" /></div>
+            <div class="info-row"><label>Endereço</label><input type="text" id="info-endereco" /></div>
+            <div class="info-row">
+              <label>Status</label>
+              <select id="info-status">
+                <option value="Em andamento">Em andamento</option>
+                <option value="Concluído">Concluído</option>
+                <option value="Pausado">Pausado</option>
+                <option value="Planejamento">Planejamento</option>
+              </select>
+            </div>
+            <div class="info-row"><label>Observações</label><textarea id="info-obs" rows="4"></textarea></div>
+            <button class="btn-primary" style="width:auto;padding:10px 28px;" onclick="salvarInfo()">Salvar Alterações</button>
+            <div id="info-saved" class="success-msg" style="display:none;">Salvo com sucesso.</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal Nova Obra -->
+<div id="modal-obra" class="modal-overlay" style="display:none;" onclick="fecharModalObra(event)">
+  <div class="modal-box">
+    <h3>Nova Obra</h3>
+    <div class="form-group"><label>Nome da obra *</label><input type="text" id="nova-nome" placeholder="Ex: Residência Oliveira" /></div>
+    <div class="form-group"><label>Cliente *</label><input type="text" id="nova-cliente" placeholder="Nome do cliente" /></div>
+    <div class="form-group"><label>Endereço</label><input type="text" id="nova-endereco" placeholder="Endereço da obra" /></div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="nova-status">
+        <option value="Planejamento">Planejamento</option>
+        <option value="Em andamento">Em andamento</option>
+        <option value="Concluído">Concluído</option>
+        <option value="Pausado">Pausado</option>
+      </select>
+    </div>
+    <div id="nova-error" class="error-msg" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="fecharModalObra()">Cancelar</button>
+      <button class="btn-primary" style="width:auto;" onclick="criarObra()">Criar Obra</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Upload -->
+<div id="modal-upload" class="modal-overlay" style="display:none;" onclick="fecharUpload(event)">
+  <div class="modal-box">
+    <h3>Enviar Arquivo 3D</h3>
+    <p style="font-size:13px;color:#5A2818;margin-bottom:16px;line-height:1.6;">
+      O arquivo será salvo automaticamente na pasta da obra no Google Drive.<br>
+      <span style="font-size:11px;color:#8A6858;">Formatos aceitos: .obj · .gltf · .glb</span>
+    </p>
+    <div class="upload-zone" id="upload-zone"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="event.preventDefault();this.classList.add('drag')"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="handleDrop(event)">
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none" stroke="#A03828" stroke-width="1.5" opacity="0.7">
+        <path d="M16 4v16M10 10l6-6 6 6"/><rect x="4" y="22" width="24" height="6" rx="1"/>
+      </svg>
+      <p>Clique ou arraste o arquivo aqui</p>
+      <span>.obj · .gltf · .glb</span>
+    </div>
+    <input type="file" id="file-input" accept=".obj,.gltf,.glb" style="display:none" onchange="handleFileSelect(event)" />
+    <div id="upload-progress" style="display:none;">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <span id="progress-label">Enviando para o Drive...</span>
+    </div>
+    <div id="upload-error" class="error-msg" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="fecharUpload()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Google APIs -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js"></script>
+<!-- Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<!-- Config e App -->
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
