@@ -219,6 +219,9 @@ function renderSidebar(todasObras) {
     }
   }
   listEl.innerHTML = html;
+
+  // Salva para uso no menu mobile
+  todasObrasMobile = todasObras;
 }
 
 window.selecionarObra = async (driveId, cidade) => {
