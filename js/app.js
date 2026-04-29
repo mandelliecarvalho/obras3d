@@ -466,10 +466,12 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer.shadowMap.enabled=true;
 
   // Iluminação melhorada
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.7));
-  const dir=new THREE.DirectionalLight(0xffffff,0.8); dir.position.set(10,20,10); dir.castShadow=true; threeScene.add(dir);
-  const dir2=new THREE.DirectionalLight(0xffffff,0.4); dir2.position.set(-10,10,-10); threeScene.add(dir2);
-  const hemi=new THREE.HemisphereLight(0xffffff,0x444444,0.4); threeScene.add(hemi);
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const dir=new THREE.DirectionalLight(0xffffff,0.7); dir.position.set(10,20,10); dir.castShadow=true; threeScene.add(dir);
+  const dir2=new THREE.DirectionalLight(0xffffff,0.3); dir2.position.set(-10,10,-10); threeScene.add(dir2);
+  const dir3=new THREE.DirectionalLight(0xffffff,0.2); dir3.position.set(0,10,-15); threeScene.add(dir3);
+  const hemi=new THREE.HemisphereLight(0xddeeff,0x776655,0.5); threeScene.add(hemi);
+  threeRenderer.sortObjects=true;
 
   threeScene.add(new THREE.GridHelper(50,50,0x2A1008,0x1A0805));
 
@@ -515,10 +517,37 @@ function carregarModelo(url, ext, mtlUrl) {
           threeScene.add(obj);
           obj.traverse(c=>{
             if(c.isMesh){
+              // Remove linhas/arestas (geometria muito fina do SketchUp)
+              const geo = c.geometry;
+              if(geo){
+                const pos = geo.attributes.position;
+                if(pos && pos.count < 4) { c.visible=false; return; }
+              }
               meshes.push(c);
-              // Só aplica cor padrão se não tiver material do MTL
-              if(!mtlMat) c.material=new THREE.MeshPhongMaterial({color:0xCCCCCC,side:THREE.DoubleSide});
-              else c.material.side=THREE.DoubleSide;
+              if(!mtlMat){
+                c.material=new THREE.MeshPhongMaterial({color:0xCCCCCC,side:THREE.DoubleSide});
+              } else {
+                // Melhora materiais do MTL
+                if(Array.isArray(c.material)){
+                  c.material.forEach(m=>{
+                    m.side=THREE.DoubleSide;
+                    m.depthWrite=true;
+                    m.transparent = m.opacity < 1;
+                    m.alphaTest = 0.1;
+                  });
+                } else {
+                  c.material.side=THREE.DoubleSide;
+                  c.material.depthWrite=true;
+                  c.material.transparent = c.material.opacity < 1;
+                  c.material.alphaTest = 0.1;
+                }
+              }
+              c.castShadow=true;
+              c.receiveShadow=true;
+            }
+            // Remove linhas soltas (LineSegments do SketchUp)
+            if(c.isLine || c.isLineSegments || c.isLineLoop){
+              c.visible=false;
             }
           });
         }, undefined, e=>console.error(e));
