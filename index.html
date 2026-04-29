@@ -92,17 +92,25 @@
         </div>
       </div>
 
-      <div class="sidebar-section-title">Obras</div>
-      <div class="obra-list" id="sidebar-obras">
-        <div class="loading-list">Carregando...</div>
-      </div>
-      <div class="sidebar-footer">
-        <button class="btn-new-obra" onclick="abrirModalNovaObra()">
-          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2">
-            <line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/>
-          </svg>
-          Nova Obra
-        </button>
+      <!-- Toggle para mobile -->
+      <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">
+        <span>Obras</span>
+        <span class="arrow">▼</span>
+      </button>
+
+      <div class="sidebar-obras-wrap" id="sidebar-obras-wrap">
+        <div class="sidebar-section-title" style="display:none">Obras</div>
+        <div class="obra-list" id="sidebar-obras">
+          <div class="loading-list">Carregando...</div>
+        </div>
+        <div class="sidebar-footer">
+          <button class="btn-new-obra" onclick="abrirModalNovaObra()">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/>
+            </svg>
+            Nova Obra
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -269,5 +277,44 @@
 <script src="js/app.js"></script>
 <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
+
+<script>
+function toggleSidebar() {
+  const wrap = document.getElementById("sidebar-obras-wrap");
+  const btn = document.getElementById("sidebar-toggle");
+  wrap.classList.toggle("open");
+  btn.classList.toggle("open");
+}
+
+// Fecha sidebar ao selecionar obra no mobile
+const origSelecionarObra = window.selecionarObra;
+// Fecha o menu ao selecionar obra no mobile
+document.addEventListener("click", function(e) {
+  if (e.target.closest(".obra-item") && window.innerWidth <= 768) {
+    setTimeout(() => {
+      const wrap = document.getElementById("sidebar-obras-wrap");
+      const btn = document.getElementById("sidebar-toggle");
+      if (wrap) wrap.classList.remove("open");
+      if (btn) btn.classList.remove("open");
+    }, 300);
+  }
+});
+
+// No desktop, sidebar sempre aberta
+function checkDesktop() {
+  const wrap = document.getElementById("sidebar-obras-wrap");
+  const btn = document.getElementById("sidebar-toggle");
+  const toggle = document.getElementById("sidebar-toggle");
+  if (window.innerWidth > 768) {
+    if (wrap) { wrap.style.maxHeight = "none"; wrap.style.overflow = "auto"; }
+    if (toggle) toggle.style.display = "none";
+  } else {
+    if (wrap) { wrap.style.maxHeight = ""; wrap.style.overflow = ""; }
+    if (toggle) toggle.style.display = "flex";
+  }
+}
+window.addEventListener("resize", checkDesktop);
+checkDesktop();
+</script>
 </body>
 </html>

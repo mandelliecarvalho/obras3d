@@ -494,3 +494,286 @@ textarea { resize: vertical; }
   line-height: 1.7; margin-top: 24px;
 }
 .access-info strong { color: var(--terra-dark); display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ================================================
+   RESPONSIVO — MOBILE
+================================================ */
+@media (max-width: 768px) {
+
+  /* App layout empilhado */
+  .app-layout { flex-direction: column; height: 100vh; }
+
+  /* Sidebar vira barra no topo */
+  .sidebar {
+    width: 100%; min-width: 100%;
+    height: auto; min-height: 0;
+    flex-direction: column;
+  }
+
+  .sidebar-header { padding: 12px 14px 10px; }
+  .sidebar-logo .ln1 { font-size: 11px; }
+  .sidebar-logo .ln2 { display: none; }
+
+  /* Lista de obras — dropdown recolhível */
+  .sidebar-obras-wrap {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .sidebar-obras-wrap.open { max-height: 60vh; overflow-y: auto; }
+
+  .sidebar-toggle {
+    width: 100%; padding: 8px 14px;
+    background: rgba(255,255,255,0.1);
+    border: none; border-top: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .sidebar-toggle .arrow { transition: transform 0.3s; }
+  .sidebar-toggle.open .arrow { transform: rotate(180deg); }
+
+  .obra-list { padding: 4px 8px 8px; }
+  .sidebar-footer { padding: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .btn-new-obra { padding: 10px; font-size: 12px; }
+
+  /* Main área ocupa o resto */
+  .main-area { flex: 1; overflow-y: auto; }
+
+  /* Header da obra */
+  .obra-header {
+    padding: 12px 14px;
+    flex-wrap: wrap; gap: 8px;
+  }
+  .obra-header-left h2 { font-size: 15px; }
+  .obra-header-actions { flex-wrap: wrap; gap: 6px; }
+  .btn-outline { padding: 7px 10px; font-size: 10px; }
+
+  /* Tabs */
+  .tabs-row { padding: 0 10px; }
+  .tab { padding: 10px 12px; font-size: 10px; }
+
+  /* Viewer 3D — altura fixa */
+  .viewer-wrap { min-height: 300px; height: 300px; }
+
+  /* Files grid — 1 coluna */
+  .files-grid {
+    grid-template-columns: 1fr 1fr;
+    padding: 12px;
+    gap: 8px;
+  }
+  .file-card { padding: 10px; }
+  .file-card-name { font-size: 11px; }
+  .btn-mini { font-size: 9px; padding: 5px 4px; }
+
+  /* Info form */
+  .info-form { padding: 14px; }
+
+  /* Modal */
+  .modal-box { padding: 20px; margin: 10px; max-width: calc(100% - 20px); }
+
+  /* Login — empilhado */
+  #screen-login, #screen-register { flex-direction: column; }
+  .login-left {
+    width: 100%; padding: 24px 20px;
+    min-height: 180px;
+  }
+  .login-left-content { flex-direction: row; gap: 16px; align-items: center; }
+  .login-logo-box { width: 60px; height: 60px; }
+  .login-brand-name { font-size: 14px; }
+  .login-brand-sub { font-size: 8px; }
+  .login-brand-desc { display: none; }
+  .login-divider { width: 1px; height: 60px; }
+  .login-right { padding: 24px 20px; flex: 1; }
+  .login-title { font-size: 18px; }
+
+  /* Controles do viewer maiores */
+  .vc-btn { width: 42px; height: 42px; font-size: 18px; }
+  #viewer-controls { bottom: 12px; right: 12px; gap: 8px; }
+}
+
+@media (max-width: 400px) {
+  .files-grid { grid-template-columns: 1fr; }
+  .obra-header-actions { width: 100%; }
+}
+
+/* ================================================
+   RESPONSIVO MOBILE
+================================================ */
+@media (max-width: 768px) {
+
+  /* App layout vira coluna */
+  .app-layout {
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Sidebar vira barra no topo */
+  .sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    height: auto;
+    flex-direction: column;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .sidebar-header {
+    padding: 10px 14px 8px;
+  }
+
+  .sidebar-logo .ln1 { font-size: 10px; }
+  .sidebar-logo .ln2 { display: none; }
+  .sidebar-logo-img { width: 28px; height: 28px; }
+  .sidebar-user-name { font-size: 10px; max-width: 120px; }
+
+  /* Lista de obras em scroll horizontal */
+  .sidebar-obras-wrap {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 6px 10px;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sidebar-obras-wrap::-webkit-scrollbar { display: none; }
+
+  .obra-list {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 6px 10px;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex: none;
+    height: auto;
+  }
+  .obra-list::-webkit-scrollbar { display: none; }
+
+  .obra-item {
+    flex-shrink: 0;
+    min-width: 130px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    margin-bottom: 0;
+  }
+  .obra-item-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .obra-item-meta { font-size: 10px; }
+
+  /* Títulos de cidade inline */
+  .cidade-section-title {
+    flex-shrink: 0;
+    padding: 4px 6px;
+    font-size: 8px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    display: flex;
+    align-items: center;
+    border-top: none;
+    border-right: 1px solid rgba(255,255,255,0.1);
+    margin-top: 0;
+    margin-right: 4px;
+  }
+
+  /* Botão nova obra compacto */
+  .sidebar-footer {
+    padding: 6px 10px 8px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-new-obra {
+    padding: 6px 12px;
+    font-size: 10px;
+  }
+
+  /* Main area ocupa o restante */
+  .main-area {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Header da obra compacto */
+  .obra-header {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .obra-header-left h2 {
+    font-size: 14px;
+  }
+  .obra-header-actions {
+    gap: 6px;
+  }
+  .btn-outline {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  /* Tabs compactas */
+  .tabs-row {
+    padding: 0 10px;
+  }
+  .tab {
+    padding: 8px 10px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+
+  /* Viewer ocupa tela toda */
+  .viewer-wrap {
+    min-height: 300px;
+  }
+
+  /* Files grid 2 colunas */
+  .files-grid {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 12px;
+    gap: 8px;
+  }
+  .file-card { padding: 10px; }
+  .file-card-name { font-size: 11px; }
+  .btn-mini { font-size: 9px; padding: 4px 6px; }
+
+  /* Info form */
+  .info-form { padding: 14px; }
+
+  /* Modais responsivos */
+  .modal-box {
+    margin: 16px;
+    padding: 20px;
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Tela de login */
+  #screen-login, #screen-register {
+    flex-direction: column !important;
+  }
+  .login-left {
+    width: 100% !important;
+    min-height: 200px;
+    padding: 28px 24px;
+  }
+  .login-left-content { flex-direction: row; gap: 16px; }
+  .login-logo-box { width: 70px; height: 70px; }
+  .login-brand-name { font-size: 14px; }
+  .login-brand-sub { font-size: 8px; }
+  .login-brand-desc { display: none; }
+  .login-divider { display: none; }
+
+  .login-right {
+    flex: 1;
+    padding: 24px 20px;
+  }
+  .login-title { font-size: 18px; }
+
+  /* Estado vazio */
+  .empty-state h2 { font-size: 15px; }
+  .empty-state p { font-size: 12px; }
+}
+
+@media (max-width: 400px) {
+  .files-grid { grid-template-columns: 1fr; }
+  .obra-header-actions { flex-wrap: wrap; }
+}
