@@ -7,6 +7,17 @@
   <link rel="stylesheet" href="css/style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+.cidade-section-title {
+  padding: 12px 14px 4px;
+  font-size: 9px; font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase; letter-spacing: 0.16em;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin-top: 4px;
+}
+.cidade-section-title:first-child { border-top: none; margin-top: 0; }
+</style>
 </head>
 <body>
 
@@ -163,6 +174,13 @@
             <div class="info-row"><label>Cliente</label><input type="text" id="info-cliente" /></div>
             <div class="info-row"><label>Endereço</label><input type="text" id="info-endereco" /></div>
             <div class="info-row">
+              <label>Cidade</label>
+              <select id="info-cidade">
+                <option value="Maringá">Maringá</option>
+                <option value="Porto Rico">Porto Rico</option>
+              </select>
+            </div>
+            <div class="info-row">
               <label>Status</label>
               <select id="info-status">
                 <option value="Em andamento">Em andamento</option>
@@ -188,6 +206,13 @@
     <div class="form-group"><label>Nome da obra *</label><input type="text" id="nova-nome" placeholder="Ex: Residência Oliveira" /></div>
     <div class="form-group"><label>Cliente *</label><input type="text" id="nova-cliente" placeholder="Nome do cliente" /></div>
     <div class="form-group"><label>Endereço</label><input type="text" id="nova-endereco" placeholder="Endereço da obra" /></div>
+    <div class="form-group">
+      <label>Cidade</label>
+      <select id="nova-cidade">
+        <option value="Maringá">Maringá</option>
+        <option value="Porto Rico">Porto Rico</option>
+      </select>
+    </div>
     <div class="form-group">
       <label>Status</label>
       <select id="nova-status">

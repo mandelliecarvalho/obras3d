@@ -9,6 +9,7 @@ const SCOPES = [
 ].join(" ");
 
 const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest";
+const CIDADES = ["Maringá", "Porto Rico"];
 
 let gapiInited = false;
 let gisInited = false;
@@ -17,6 +18,7 @@ let accessToken = null;
 let usuarioAtual = null;
 let obraAtiva = null;
 let pastaRaizId = null;
+let pastasCidades = {}; // { "Maringá": "driveId", "Porto Rico": "driveId" }
 let tabAtiva = "viewer";
 
 let threeRenderer = null, threeScene = null, threeCamera = null, threeAnimId = null;
@@ -71,12 +73,11 @@ function verificarTokenSalvo() {
 
 async function carregarUsuario() {
   try {
-    const resp = await fetch("https://people.googleapis.com/v1/people/me?personFields=emailAddresses,names,photos", {
+    const resp = await fetch("https://people.googleapis.com/v1/people/me?personFields=emailAddresses,names", {
       headers: { "Authorization": `Bearer ${accessToken}` }
     });
     const data = await resp.json();
-
-    if (!resp.ok) throw new Error(data.error?.message || "Erro ao buscar usuário");
+    if (!resp.ok) throw new Error(data.error?.message || "Erro");
 
     const email = data.emailAddresses?.[0]?.value || "";
     const nome = data.names?.[0]?.displayName || email;
@@ -94,7 +95,7 @@ async function carregarUsuario() {
     usuarioAtual = { email, nome };
     document.getElementById("sidebar-username").textContent = nome;
     showScreen("app");
-    await garantirPastaRaiz();
+    await garantirEstruturaDrive();
     await carregarObras();
   } catch (e) {
     console.error("Erro ao carregar usuário:", e);
@@ -115,7 +116,8 @@ window.logout = () => {
   if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
   gapi.client.setToken(null);
   localStorage.removeItem("mc_token");
-  accessToken = null; usuarioAtual = null; obraAtiva = null; pastaRaizId = null;
+  accessToken = null; usuarioAtual = null; obraAtiva = null;
+  pastaRaizId = null; pastasCidades = {};
   destruirViewer();
   showScreen("login");
 };
@@ -126,21 +128,41 @@ function showScreen(name) {
 }
 
 // ============================================================
-// GOOGLE DRIVE — Pasta raiz
+// GOOGLE DRIVE — Estrutura de pastas
+// MC Obras 3D / Maringá / [obra]
+// MC Obras 3D / Porto Rico / [obra]
 // ============================================================
-async function garantirPastaRaiz() {
+async function garantirEstruturaDrive() {
+  // Pasta raiz
   const res = await gapi.client.drive.files.list({
     q: `name='${CONFIG.PASTA_RAIZ_NOME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: "files(id, name)"
+    fields: "files(id)"
   });
   if (res.result.files.length > 0) {
     pastaRaizId = res.result.files[0].id;
   } else {
-    const created = await gapi.client.drive.files.create({
+    const c = await gapi.client.drive.files.create({
       resource: { name: CONFIG.PASTA_RAIZ_NOME, mimeType: "application/vnd.google-apps.folder" },
       fields: "id"
     });
-    pastaRaizId = created.result.id;
+    pastaRaizId = c.result.id;
+  }
+
+  // Pastas de cada cidade
+  for (const cidade of CIDADES) {
+    const rc = await gapi.client.drive.files.list({
+      q: `name='${cidade}' and '${pastaRaizId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: "files(id)"
+    });
+    if (rc.result.files.length > 0) {
+      pastasCidades[cidade] = rc.result.files[0].id;
+    } else {
+      const cc = await gapi.client.drive.files.create({
+        resource: { name: cidade, mimeType: "application/vnd.google-apps.folder", parents: [pastaRaizId] },
+        fields: "id"
+      });
+      pastasCidades[cidade] = cc.result.id;
+    }
   }
 }
 
@@ -156,43 +178,58 @@ async function carregarObras() {
   const listEl = document.getElementById("sidebar-obras");
   listEl.innerHTML = `<div class="loading-list">Carregando...</div>`;
   try {
-    const res = await gapi.client.drive.files.list({
-      q: `'${pastaRaizId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: "files(id, name, createdTime)", orderBy: "createdTime desc"
-    });
     const obrasLocais = getObrasLocal();
-    const obras = res.result.files.map(pasta => {
-      const local = obrasLocais.find(o => o.driveId === pasta.id) || {};
-      return { driveId: pasta.id, nome: pasta.name, cliente: local.cliente || "", endereco: local.endereco || "", status: local.status || "Em andamento", obs: local.obs || "" };
-    });
-    renderSidebar(obras);
+    const todasObras = {};
+
+    for (const cidade of CIDADES) {
+      const res = await gapi.client.drive.files.list({
+        q: `'${pastasCidades[cidade]}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        fields: "files(id, name, createdTime)",
+        orderBy: "createdTime desc"
+      });
+      todasObras[cidade] = res.result.files.map(pasta => {
+        const local = obrasLocais.find(o => o.driveId === pasta.id) || {};
+        return { driveId: pasta.id, nome: pasta.name, cidade, cliente: local.cliente || "", endereco: local.endereco || "", status: local.status || "Em andamento", obs: local.obs || "" };
+      });
+    }
+    renderSidebar(todasObras);
   } catch (e) {
     listEl.innerHTML = `<div class="loading-list" style="color:#C05050">Erro ao carregar</div>`;
     console.error(e);
   }
 }
 
-function renderSidebar(obras) {
+function renderSidebar(todasObras) {
   const listEl = document.getElementById("sidebar-obras");
-  if (!obras.length) { listEl.innerHTML = `<div class="loading-list">Nenhuma obra ainda</div>`; return; }
   const dotMap = { "Em andamento": "dot-andamento", "Concluído": "dot-concluido", "Pausado": "dot-pausado", "Planejamento": "dot-planejamento" };
-  listEl.innerHTML = obras.map(o => `
-    <div class="obra-item ${obraAtiva?.driveId === o.driveId ? "active" : ""}" onclick="selecionarObra('${o.driveId}')">
-      <div class="obra-item-name">${o.nome}</div>
-      <div class="obra-item-meta"><span class="status-dot ${dotMap[o.status] || "dot-planejamento"}"></span>${o.status}</div>
-    </div>
-  `).join("");
+  let html = "";
+
+  for (const cidade of CIDADES) {
+    const obras = todasObras[cidade] || [];
+    html += `<div class="cidade-section-title">${cidade.toUpperCase()}</div>`;
+    if (!obras.length) {
+      html += `<div class="loading-list" style="font-size:11px;padding:6px 12px;">Nenhuma obra</div>`;
+    } else {
+      html += obras.map(o => `
+        <div class="obra-item ${obraAtiva?.driveId === o.driveId ? "active" : ""}" onclick="selecionarObra('${o.driveId}', '${o.cidade}')">
+          <div class="obra-item-name">${o.nome}</div>
+          <div class="obra-item-meta"><span class="status-dot ${dotMap[o.status] || "dot-planejamento"}"></span>${o.status}</div>
+        </div>
+      `).join("");
+    }
+  }
+  listEl.innerHTML = html;
 }
 
-window.selecionarObra = async (driveId) => {
+window.selecionarObra = async (driveId, cidade) => {
   destruirViewer();
   const obrasLocais = getObrasLocal();
   const local = obrasLocais.find(o => o.driveId === driveId) || {};
   const res = await gapi.client.drive.files.get({ fileId: driveId, fields: "id,name" });
-  obraAtiva = { driveId, nome: res.result.name, cliente: local.cliente || "", endereco: local.endereco || "", status: local.status || "Em andamento", obs: local.obs || "" };
+  obraAtiva = { driveId, nome: res.result.name, cidade, cliente: local.cliente || "", endereco: local.endereco || "", status: local.status || "Em andamento", obs: local.obs || "" };
 
   document.getElementById("obra-nome-titulo").textContent = obraAtiva.nome;
-  document.getElementById("obra-cliente-label").textContent = obraAtiva.cliente;
+  document.getElementById("obra-cliente-label").textContent = obraAtiva.cliente ? `${obraAtiva.cliente} · ${cidade}` : cidade;
   const sb = document.getElementById("obra-status-label");
   sb.textContent = obraAtiva.status;
   const cls = { "Em andamento": "badge-andamento", "Concluído": "badge-concluido", "Pausado": "badge-pausado", "Planejamento": "badge-planejamento" };
@@ -202,6 +239,7 @@ window.selecionarObra = async (driveId) => {
   document.getElementById("info-endereco").value = obraAtiva.endereco;
   document.getElementById("info-status").value = obraAtiva.status;
   document.getElementById("info-obs").value = obraAtiva.obs;
+  document.getElementById("info-cidade").value = obraAtiva.cidade;
 
   document.getElementById("empty-state").style.display = "none";
   document.getElementById("obra-panel").classList.add("visible");
@@ -218,16 +256,17 @@ window.criarObra = async () => {
   const cliente = document.getElementById("nova-cliente").value.trim();
   const endereco = document.getElementById("nova-endereco").value.trim();
   const status = document.getElementById("nova-status").value;
+  const cidade = document.getElementById("nova-cidade").value;
   const errEl = document.getElementById("nova-error");
   errEl.style.display = "none";
   if (!nome || !cliente) { errEl.textContent = "Preencha nome e cliente."; errEl.style.display = "block"; return; }
   try {
     const res = await gapi.client.drive.files.create({
-      resource: { name: nome, mimeType: "application/vnd.google-apps.folder", parents: [pastaRaizId] },
+      resource: { name: nome, mimeType: "application/vnd.google-apps.folder", parents: [pastasCidades[cidade]] },
       fields: "id"
     });
     const obras = getObrasLocal();
-    obras.unshift({ driveId: res.result.id, nome, cliente, endereco, status, obs: "" });
+    obras.unshift({ driveId: res.result.id, nome, cliente, endereco, status, cidade, obs: "" });
     salvarObrasLocal(obras);
     document.getElementById("modal-obra").style.display = "none";
     ["nova-nome","nova-cliente","nova-endereco"].forEach(id => document.getElementById(id).value = "");
@@ -238,16 +277,35 @@ window.criarObra = async () => {
 window.salvarInfo = async () => {
   if (!obraAtiva) return;
   const novoNome = document.getElementById("info-nome").value.trim();
-  const dados = { driveId: obraAtiva.driveId, nome: novoNome, cliente: document.getElementById("info-cliente").value.trim(), endereco: document.getElementById("info-endereco").value.trim(), status: document.getElementById("info-status").value, obs: document.getElementById("info-obs").value.trim() };
+  const novaCidade = document.getElementById("info-cidade").value;
+  const dados = {
+    driveId: obraAtiva.driveId, nome: novoNome, cidade: novaCidade,
+    cliente: document.getElementById("info-cliente").value.trim(),
+    endereco: document.getElementById("info-endereco").value.trim(),
+    status: document.getElementById("info-status").value,
+    obs: document.getElementById("info-obs").value.trim()
+  };
   try {
-    if (novoNome !== obraAtiva.nome) await gapi.client.drive.files.update({ fileId: obraAtiva.driveId, resource: { name: novoNome } });
+    // Renomeia pasta se necessário
+    if (novoNome !== obraAtiva.nome) {
+      await gapi.client.drive.files.update({ fileId: obraAtiva.driveId, resource: { name: novoNome } });
+    }
+    // Move para outra cidade se necessário
+    if (novaCidade !== obraAtiva.cidade) {
+      await gapi.client.drive.files.update({
+        fileId: obraAtiva.driveId,
+        addParents: pastasCidades[novaCidade],
+        removeParents: pastasCidades[obraAtiva.cidade],
+        fields: "id"
+      });
+    }
     const obras = getObrasLocal();
     const idx = obras.findIndex(o => o.driveId === obraAtiva.driveId);
     if (idx >= 0) obras[idx] = dados; else obras.unshift(dados);
     salvarObrasLocal(obras);
     obraAtiva = { ...obraAtiva, ...dados };
     document.getElementById("obra-nome-titulo").textContent = dados.nome;
-    document.getElementById("obra-cliente-label").textContent = dados.cliente;
+    document.getElementById("obra-cliente-label").textContent = dados.cliente ? `${dados.cliente} · ${dados.cidade}` : dados.cidade;
     const sb = document.getElementById("obra-status-label");
     sb.textContent = dados.status;
     const cls = { "Em andamento": "badge-andamento", "Concluído": "badge-concluido", "Pausado": "badge-pausado", "Planejamento": "badge-planejamento" };
@@ -328,7 +386,7 @@ window.excluirArquivo = async (fileId, nome) => {
 // UPLOAD
 // ============================================================
 window.abrirUpload = () => { document.getElementById("modal-upload").style.display="flex"; document.getElementById("upload-progress").style.display="none"; document.getElementById("upload-error").style.display="none"; };
-window.fecharUpload = (e) => { if (e && e.target!==document.getElementById("modal-upload")) return; document.getElementById("modal-upload").style.display="none"; };
+window.fecharUpload = (e) => { if(e && e.target!==document.getElementById("modal-upload")) return; document.getElementById("modal-upload").style.display="none"; };
 window.handleDrop = (e) => { e.preventDefault(); document.getElementById("upload-zone").classList.remove("drag"); if(e.dataTransfer.files[0]) enviarArquivo(e.dataTransfer.files[0]); };
 window.handleFileSelect = (e) => { if(e.target.files[0]) enviarArquivo(e.target.files[0]); };
 
@@ -343,20 +401,18 @@ async function enviarArquivo(file) {
   try {
     const metadata = { name: file.name, parents: [obraAtiva.driveId] };
     const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+    form.append("metadata", new Blob([JSON.stringify(metadata)], { type:"application/json" }));
     form.append("file", file);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name");
     xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
     xhr.upload.onprogress = (e) => { if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);fill.style.width=p+"%";label.textContent=`Enviando... ${p}%`;} };
     xhr.onload = () => {
-      if (xhr.status===200) {
-        fill.style.width="100%"; label.textContent="Salvo no Drive!";
-        setTimeout(() => { document.getElementById("modal-upload").style.display="none"; document.getElementById("file-input").value=""; carregarArquivos(); if(tabAtiva!=="arquivos")setTab("arquivos",document.querySelectorAll(".tab")[1]); }, 800);
-      } else { document.getElementById("upload-error").textContent="Erro no upload."; document.getElementById("upload-error").style.display="block"; }
+      if(xhr.status===200){fill.style.width="100%";label.textContent="Salvo no Drive!";setTimeout(()=>{document.getElementById("modal-upload").style.display="none";document.getElementById("file-input").value="";carregarArquivos();if(tabAtiva!=="arquivos")setTab("arquivos",document.querySelectorAll(".tab")[1]);},800);}
+      else{document.getElementById("upload-error").textContent="Erro no upload.";document.getElementById("upload-error").style.display="block";}
     };
     xhr.send(form);
-  } catch(e) { document.getElementById("upload-error").textContent="Erro no upload."; document.getElementById("upload-error").style.display="block"; console.error(e); }
+  } catch(e){document.getElementById("upload-error").textContent="Erro no upload.";document.getElementById("upload-error").style.display="block";console.error(e);}
 }
 
 // ============================================================
@@ -371,8 +427,8 @@ window.visualizarArquivoDrive = (fileId, ext, nome) => {
 function iniciarViewer(url, ext, nome) {
   destruirViewer();
   wireMode=false; autoRotate=false; meshes=[];
-  const canvas = document.getElementById("three-canvas");
-  const wrap = canvas.parentElement;
+  const canvas=document.getElementById("three-canvas");
+  const wrap=canvas.parentElement;
   canvas.style.display="block";
   document.getElementById("viewer-empty").style.display="none";
   document.getElementById("viewer-controls").style.display="flex";
@@ -387,8 +443,8 @@ function iniciarViewer(url, ext, nome) {
   const dir=new THREE.DirectionalLight(0xffffff,1); dir.position.set(5,10,5); threeScene.add(dir);
   const fill=new THREE.DirectionalLight(0xffddcc,0.3); fill.position.set(-5,2,-5); threeScene.add(fill);
   threeScene.add(new THREE.GridHelper(20,30,0x2A1008,0x1A0805));
-  carregarModelo(url, ext);
-  canvas.addEventListener("mousedown", e=>{isDragging=true;prevMouseX=e.clientX;prevMouseY=e.clientY;});
+  carregarModelo(url,ext);
+  canvas.addEventListener("mousedown",e=>{isDragging=true;prevMouseX=e.clientX;prevMouseY=e.clientY;});
   window.addEventListener("mouseup",()=>isDragging=false);
   window.addEventListener("mousemove",onMouseMove);
   canvas.addEventListener("wheel",onWheel,{passive:true});
@@ -397,35 +453,19 @@ function iniciarViewer(url, ext, nome) {
   animate();
 }
 
-function carregarModelo(url, ext) {
-  const s = document.createElement("script");
-  if (ext==="obj") {
+function carregarModelo(url,ext) {
+  const s=document.createElement("script");
+  if(ext==="obj"){
     s.src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js";
-    s.onload=()=>{
-      const loader=new THREE.OBJLoader();
-      loader.setRequestHeader({"Authorization":`Bearer ${accessToken}`});
-      loader.load(url,obj=>{centralizarModelo(obj);threeScene.add(obj);obj.traverse(c=>{if(c.isMesh){meshes.push(c);c.material=new THREE.MeshPhongMaterial({color:0xB84030});}});},undefined,e=>console.error(e));
-    };
+    s.onload=()=>{const l=new THREE.OBJLoader();l.setRequestHeader({"Authorization":`Bearer ${accessToken}`});l.load(url,obj=>{centralizarModelo(obj);threeScene.add(obj);obj.traverse(c=>{if(c.isMesh){meshes.push(c);c.material=new THREE.MeshPhongMaterial({color:0xB84030});}});},undefined,e=>console.error(e));};
   } else {
     s.src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js";
-    s.onload=()=>{
-      const loader=new THREE.GLTFLoader();
-      loader.setRequestHeader({"Authorization":`Bearer ${accessToken}`});
-      loader.load(url,gltf=>{centralizarModelo(gltf.scene);threeScene.add(gltf.scene);gltf.scene.traverse(c=>{if(c.isMesh)meshes.push(c);});},undefined,e=>console.error(e));
-    };
+    s.onload=()=>{const l=new THREE.GLTFLoader();l.setRequestHeader({"Authorization":`Bearer ${accessToken}`});l.load(url,gltf=>{centralizarModelo(gltf.scene);threeScene.add(gltf.scene);gltf.scene.traverse(c=>{if(c.isMesh)meshes.push(c);});},undefined,e=>console.error(e));};
   }
   document.head.appendChild(s);
 }
 
-function centralizarModelo(obj) {
-  const box=new THREE.Box3().setFromObject(obj);
-  const center=box.getCenter(new THREE.Vector3());
-  const size=box.getSize(new THREE.Vector3());
-  const scale=6/Math.max(size.x,size.y,size.z);
-  obj.scale.setScalar(scale); obj.position.sub(center.multiplyScalar(scale)); obj.position.y+=size.y*scale/2;
-  camRadius=10; updateCamera();
-}
-
+function centralizarModelo(obj){const box=new THREE.Box3().setFromObject(obj);const center=box.getCenter(new THREE.Vector3());const size=box.getSize(new THREE.Vector3());const scale=6/Math.max(size.x,size.y,size.z);obj.scale.setScalar(scale);obj.position.sub(center.multiplyScalar(scale));obj.position.y+=size.y*scale/2;camRadius=10;updateCamera();}
 function onMouseMove(e){if(!isDragging)return;camTheta-=(e.clientX-prevMouseX)*0.008;camPhi-=(e.clientY-prevMouseY)*0.008;camPhi=Math.max(0.05,Math.min(Math.PI/2-0.02,camPhi));prevMouseX=e.clientX;prevMouseY=e.clientY;updateCamera();}
 function onWheel(e){camRadius=Math.max(2,Math.min(30,camRadius+e.deltaY*0.02));updateCamera();}
 function updateCamera(){if(!threeCamera)return;threeCamera.position.set(camRadius*Math.sin(camPhi)*Math.sin(camTheta),camRadius*Math.cos(camPhi),camRadius*Math.sin(camPhi)*Math.cos(camTheta));threeCamera.lookAt(0,1,0);}
@@ -434,8 +474,7 @@ window.toggleWireframe=()=>{wireMode=!wireMode;meshes.forEach(m=>{if(m.material)
 window.toggleAutoRotate=()=>{autoRotate=!autoRotate;document.getElementById("btn-rotate").textContent=autoRotate?"⏸":"▶";};
 
 function destruirViewer(){
-  cancelAnimationFrame(threeAnimId);
-  window.removeEventListener("mousemove",onMouseMove);
+  cancelAnimationFrame(threeAnimId);window.removeEventListener("mousemove",onMouseMove);
   if(threeRenderer){threeRenderer.dispose();threeRenderer=null;}
   threeScene=null;threeCamera=null;meshes=[];
   const canvas=document.getElementById("three-canvas");if(canvas)canvas.style.display="none";
