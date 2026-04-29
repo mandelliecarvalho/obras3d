@@ -721,6 +721,101 @@ window.toggleAutoRotate=()=>{autoRotate=!autoRotate;document.getElementById("btn
 
 let isFakeFullscreen = false;
 
+
+// ============================================================
+// MENU MOBILE — OBRAS POR CIDADE
+// ============================================================
+let todasObrasMobile = {};
+
+function toggleMobileMenu() {
+  const panel = document.getElementById("mobile-menu-panel");
+  const overlay = document.getElementById("mobile-overlay");
+  const arrow = document.getElementById("mobile-trigger-arrow");
+  const isOpen = panel.style.display !== "none";
+  if (isOpen) {
+    fecharMobileMenu();
+  } else {
+    panel.style.display = "block";
+    overlay.classList.add("open");
+    arrow.textContent = "▲";
+    renderMobileMenu();
+  }
+}
+
+function fecharMobileMenu() {
+  const panel = document.getElementById("mobile-menu-panel");
+  const overlay = document.getElementById("mobile-overlay");
+  const arrow = document.getElementById("mobile-trigger-arrow");
+  panel.style.display = "none";
+  overlay.classList.remove("open");
+  if(arrow) arrow.textContent = "▼";
+}
+
+function renderMobileMenu() {
+  const container = document.getElementById("mobile-menu-content");
+  const dotMap = { "Em andamento": "badge-andamento", "Concluído": "badge-concluido", "Pausado": "badge-pausado", "Planejamento": "badge-planejamento" };
+  let html = "";
+
+  for (const cidade of CIDADES) {
+    const obras = todasObrasMobile[cidade] || [];
+    const cidadeId = cidade.replace(/\s/g, "_");
+    html += `
+      <button class="mobile-cidade-btn" onclick="toggleCidadeMobile('${cidadeId}')" id="btn-cidade-${cidadeId}">
+        <span>📍 ${cidade} <span style="font-size:10px;opacity:0.5;font-weight:400">(${obras.length} obra${obras.length !== 1 ? 's' : ''})</span></span>
+        <span class="arrow">▶</span>
+      </button>
+      <div class="mobile-obras-list" id="list-cidade-${cidadeId}">
+        ${obras.length === 0 ? `<div style="padding:12px 24px;color:rgba(255,255,255,0.3);font-size:12px;">Nenhuma obra</div>` : 
+          obras.map(o => `
+            <button class="mobile-obra-item ${obraAtiva?.driveId === o.driveId ? 'active' : ''}" 
+                    onclick="selecionarObraMobile('${o.driveId}', '${o.cidade}')">
+              <span>${o.nome}</span>
+              <span class="obra-status ${dotMap[o.status] || 'badge-planejamento'}" 
+                    style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7)">${o.status}</span>
+            </button>
+          `).join('')
+        }
+        <button class="mobile-nova-obra" onclick="fecharMobileMenu(); abrirModalNovaObraComCidade('${cidade}')">
+          + Nova obra em ${cidade}
+        </button>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+
+  // Abre a cidade da obra ativa automaticamente
+  if (obraAtiva) {
+    const cidadeId = obraAtiva.cidade.replace(/\s/g, "_");
+    toggleCidadeMobile(cidadeId);
+  }
+}
+
+function toggleCidadeMobile(cidadeId) {
+  const list = document.getElementById(`list-cidade-${cidadeId}`);
+  const btn = document.getElementById(`btn-cidade-${cidadeId}`);
+  if (!list) return;
+  const isOpen = list.classList.contains("open");
+  // Fecha todas
+  document.querySelectorAll(".mobile-obras-list").forEach(l => l.classList.remove("open"));
+  document.querySelectorAll(".mobile-cidade-btn").forEach(b => b.classList.remove("open"));
+  // Abre a clicada se estava fechada
+  if (!isOpen) {
+    list.classList.add("open");
+    btn.classList.add("open");
+  }
+}
+
+function selecionarObraMobile(driveId, cidade) {
+  fecharMobileMenu();
+  selecionarObra(driveId, cidade);
+}
+
+window.abrirModalNovaObraComCidade = (cidade) => {
+  document.getElementById("nova-cidade").value = cidade;
+  abrirModalNovaObra();
+};
+
 window.toggleFullscreen = () => {
   const wrap = document.getElementById("three-canvas").parentElement;
   const btn = document.getElementById("btn-fullscreen");
