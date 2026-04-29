@@ -719,46 +719,73 @@ window.resetCamera=()=>{
 window.toggleWireframe=()=>{wireMode=!wireMode;meshes.forEach(m=>{if(m.material)m.material.wireframe=wireMode;});};
 window.toggleAutoRotate=()=>{autoRotate=!autoRotate;document.getElementById("btn-rotate").textContent=autoRotate?"⏸":"▶";};
 
+let isFakeFullscreen = false;
+
 window.toggleFullscreen = () => {
   const wrap = document.getElementById("three-canvas").parentElement;
   const btn = document.getElementById("btn-fullscreen");
 
+  // iOS Safari não suporta fullscreen API — usa CSS fullscreen simulado
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+  if (isIOS) {
+    if (!isFakeFullscreen) {
+      // Entra em "tela cheia" via CSS
+      wrap.classList.add("ios-fullscreen");
+      document.body.classList.add("ios-fullscreen-active");
+      btn.textContent = "✕";
+      isFakeFullscreen = true;
+      setTimeout(() => ajustarRenderer(), 100);
+    } else {
+      wrap.classList.remove("ios-fullscreen");
+      document.body.classList.remove("ios-fullscreen-active");
+      btn.textContent = "⛶";
+      isFakeFullscreen = false;
+      setTimeout(() => ajustarRenderer(), 100);
+    }
+    return;
+  }
+
+  // Android e desktop — usa API nativa
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    // Entrar em tela cheia
-    const el = wrap;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    if (wrap.requestFullscreen) wrap.requestFullscreen();
+    else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
     btn.textContent = "✕";
-    btn.title = "Sair da tela cheia";
   } else {
-    // Sair de tela cheia
     if (document.exitFullscreen) document.exitFullscreen();
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
     btn.textContent = "⛶";
-    btn.title = "Tela cheia";
   }
 };
 
-// Atualiza o tamanho do renderer ao entrar/sair da tela cheia
+// Atualiza renderer ao entrar/sair tela cheia nativa
 document.addEventListener("fullscreenchange", ajustarRenderer);
 document.addEventListener("webkitfullscreenchange", ajustarRenderer);
+
+// Atualiza renderer ao rotacionar o celular
+window.addEventListener("orientationchange", () => setTimeout(ajustarRenderer, 300));
+window.addEventListener("resize", ajustarRenderer);
 
 function ajustarRenderer() {
   if (!threeRenderer || !threeCamera) return;
   const canvas = document.getElementById("three-canvas");
   const wrap = canvas.parentElement;
-  const w = wrap.clientWidth;
-  const h = wrap.clientHeight;
-  threeRenderer.setSize(w, h);
-  threeCamera.aspect = w / h;
-  threeCamera.updateProjectionMatrix();
+  // Usa dimensões reais da tela em fullscreen
+  const w = (document.fullscreenElement || document.webkitFullscreenElement || isFakeFullscreen)
+    ? window.innerWidth
+    : wrap.clientWidth;
+  const h = (document.fullscreenElement || document.webkitFullscreenElement || isFakeFullscreen)
+    ? window.innerHeight
+    : wrap.clientHeight;
+  if(w > 0 && h > 0) {
+    threeRenderer.setSize(w, h);
+    threeCamera.aspect = w / h;
+    threeCamera.updateProjectionMatrix();
+  }
   const btn = document.getElementById("btn-fullscreen");
   if (btn) {
-    if (document.fullscreenElement || document.webkitFullscreenElement) {
-      btn.textContent = "✕";
-    } else {
-      btn.textContent = "⛶";
-    }
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement || isFakeFullscreen;
+    btn.textContent = isFs ? "✕" : "⛶";
   }
 }
 
