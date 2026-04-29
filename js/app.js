@@ -368,7 +368,7 @@ async function carregarArquivos() {
           <div class="file-card-name">${a.name}</div>
           <div style="font-size:11px;color:var(--text-muted)">${tamanho}</div>
           <div class="file-card-actions">
-            <button class="btn-mini" onclick="visualizarArquivoDrive('${a.id}','${ext}','${a.name}')">Visualizar 3D</button>
+            <button class="btn-mini" onclick="visualizarArquivoDrive('${a.id}','${ext}','${a.name}','${obraAtiva.driveId}')">Visualizar 3D</button>
             <button class="btn-mini danger" onclick="excluirArquivo('${a.id}','${a.name}')">Excluir</button>
           </div>
         </div>`;
@@ -418,15 +418,36 @@ async function enviarArquivo(file) {
 // ============================================================
 // VISUALIZADOR 3D
 // ============================================================
-window.visualizarArquivoDrive = (fileId, ext, nome) => {
+window.visualizarArquivoDrive = async (fileId, ext, nome, pastaId) => {
   setTab("viewer", document.querySelectorAll(".tab")[0]);
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-  setTimeout(() => iniciarViewer(url, ext, nome), 100);
+  
+  // Procura arquivo MTL correspondente na mesma pasta
+  let mtlUrl = null;
+  if(ext === "obj" && pastaId) {
+    try {
+      const nomeSemExt = nome.replace(/\.obj$/i, "");
+      const res = await gapi.client.drive.files.list({
+        q: `'${pastaId}' in parents and name='${nomeSemExt}.mtl' and trashed=false`,
+        fields: "files(id, name)"
+      });
+      if(res.result.files.length > 0) {
+        mtlUrl = `https://www.googleapis.com/drive/v3/files/${res.result.files[0].id}?alt=media`;
+      }
+    } catch(e) { console.log("MTL não encontrado"); }
+  }
+  setTimeout(() => iniciarViewer(url, ext, nome, mtlUrl), 100);
 };
 
-function iniciarViewer(url, ext, nome) {
+// Estado do mouse
+let mouseBtn = -1; // 0=esquerdo(órbita), 1=meio(pan), 2=direito(pan)
+let panX = 0, panY = 0;
+let target = null; // ponto de foco da câmera
+
+function iniciarViewer(url, ext, nome, mtlUrl) {
   destruirViewer();
   wireMode=false; autoRotate=false; meshes=[];
+  target = new THREE.Vector3(0,0,0);
   const canvas=document.getElementById("three-canvas");
   const wrap=canvas.parentElement;
   canvas.style.display="block";
@@ -435,41 +456,195 @@ function iniciarViewer(url, ext, nome) {
   document.getElementById("viewer-label").textContent=nome;
   document.getElementById("viewer-label").style.display="block";
   const w=wrap.clientWidth||800, h=wrap.clientHeight||500;
-  threeScene=new THREE.Scene(); threeScene.background=new THREE.Color(0x160A08);
-  threeCamera=new THREE.PerspectiveCamera(45,w/h,0.01,1000);
+
+  threeScene=new THREE.Scene();
+  threeScene.background=new THREE.Color(0x1A0E0E);
+  threeCamera=new THREE.PerspectiveCamera(45,w/h,0.01,2000);
   threeRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
-  threeRenderer.setSize(w,h); threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-  threeScene.add(new THREE.AmbientLight(0xffffff,0.5));
-  const dir=new THREE.DirectionalLight(0xffffff,1); dir.position.set(5,10,5); threeScene.add(dir);
-  const fill=new THREE.DirectionalLight(0xffddcc,0.3); fill.position.set(-5,2,-5); threeScene.add(fill);
-  threeScene.add(new THREE.GridHelper(20,30,0x2A1008,0x1A0805));
-  carregarModelo(url,ext);
-  canvas.addEventListener("mousedown",e=>{isDragging=true;prevMouseX=e.clientX;prevMouseY=e.clientY;});
-  window.addEventListener("mouseup",()=>isDragging=false);
-  window.addEventListener("mousemove",onMouseMove);
-  canvas.addEventListener("wheel",onWheel,{passive:true});
-  camTheta=0.5; camPhi=0.8; camRadius=10; updateCamera();
-  function animate(){threeAnimId=requestAnimationFrame(animate);if(autoRotate){camTheta+=0.005;updateCamera();}threeRenderer.render(threeScene,threeCamera);}
+  threeRenderer.setSize(w,h);
+  threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  threeRenderer.shadowMap.enabled=true;
+
+  // Iluminação melhorada
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const dir=new THREE.DirectionalLight(0xffffff,0.8); dir.position.set(10,20,10); dir.castShadow=true; threeScene.add(dir);
+  const dir2=new THREE.DirectionalLight(0xffffff,0.4); dir2.position.set(-10,10,-10); threeScene.add(dir2);
+  const hemi=new THREE.HemisphereLight(0xffffff,0x444444,0.4); threeScene.add(hemi);
+
+  threeScene.add(new THREE.GridHelper(50,50,0x2A1008,0x1A0805));
+
+  carregarModelo(url, ext, mtlUrl);
+
+  // Controles de mouse melhorados
+  canvas.addEventListener("mousedown", e=>{
+    mouseBtn=e.button;
+    isDragging=true;
+    prevMouseX=e.clientX;
+    prevMouseY=e.clientY;
+    e.preventDefault();
+  });
+  window.addEventListener("mouseup", ()=>{ isDragging=false; mouseBtn=-1; });
+  window.addEventListener("mousemove", onMouseMove);
+  canvas.addEventListener("wheel", onWheel, {passive:false});
+  canvas.addEventListener("contextmenu", e=>e.preventDefault());
+
+  // Touch para mobile
+  canvas.addEventListener("touchstart", onTouchStart, {passive:false});
+  canvas.addEventListener("touchmove", onTouchMove, {passive:false});
+  canvas.addEventListener("touchend", ()=>isDragging=false);
+
+  camTheta=0.6; camPhi=0.7; camRadius=15; panX=0; panY=0;
+  updateCamera();
+
+  function animate(){threeAnimId=requestAnimationFrame(animate);if(autoRotate){camTheta+=0.003;updateCamera();}threeRenderer.render(threeScene,threeCamera);}
   animate();
 }
 
-function carregarModelo(url,ext) {
-  const s=document.createElement("script");
-  if(ext==="obj"){
-    s.src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js";
-    s.onload=()=>{const l=new THREE.OBJLoader();l.setRequestHeader({"Authorization":`Bearer ${accessToken}`});l.load(url,obj=>{centralizarModelo(obj);threeScene.add(obj);obj.traverse(c=>{if(c.isMesh){meshes.push(c);c.material=new THREE.MeshPhongMaterial({color:0xB84030});}});},undefined,e=>console.error(e));};
+function carregarModelo(url, ext, mtlUrl) {
+  if(ext==="obj") {
+    // Carrega MTL + OBJ com cores
+    const loadObj = (mtlMat) => {
+      const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js";
+      s.onload=()=>{
+        const loader=new THREE.OBJLoader();
+        if(mtlMat) loader.setMaterials(mtlMat);
+        loader.setRequestHeader({"Authorization":`Bearer ${accessToken}`});
+        loader.load(url, obj=>{
+          centralizarModelo(obj);
+          threeScene.add(obj);
+          obj.traverse(c=>{
+            if(c.isMesh){
+              meshes.push(c);
+              // Só aplica cor padrão se não tiver material do MTL
+              if(!mtlMat) c.material=new THREE.MeshPhongMaterial({color:0xCCCCCC,side:THREE.DoubleSide});
+              else c.material.side=THREE.DoubleSide;
+            }
+          });
+        }, undefined, e=>console.error(e));
+      };
+      document.head.appendChild(s);
+    };
+
+    if(mtlUrl) {
+      // Carrega MTL primeiro
+      const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js";
+      s.onload=()=>{
+        const mtlLoader=new THREE.MTLLoader();
+        mtlLoader.setRequestHeader({"Authorization":`Bearer ${accessToken}`});
+        mtlLoader.load(mtlUrl, mat=>{ mat.preload(); loadObj(mat); }, undefined, ()=>loadObj(null));
+      };
+      document.head.appendChild(s);
+    } else {
+      loadObj(null);
+    }
   } else {
+    const s=document.createElement("script");
     s.src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js";
-    s.onload=()=>{const l=new THREE.GLTFLoader();l.setRequestHeader({"Authorization":`Bearer ${accessToken}`});l.load(url,gltf=>{centralizarModelo(gltf.scene);threeScene.add(gltf.scene);gltf.scene.traverse(c=>{if(c.isMesh)meshes.push(c);});},undefined,e=>console.error(e));};
+    s.onload=()=>{
+      const l=new THREE.GLTFLoader();
+      l.setRequestHeader({"Authorization":`Bearer ${accessToken}`});
+      l.load(url,gltf=>{
+        centralizarModelo(gltf.scene);
+        threeScene.add(gltf.scene);
+        gltf.scene.traverse(c=>{if(c.isMesh){meshes.push(c);c.material.side=THREE.DoubleSide;}});
+      },undefined,e=>console.error(e));
+    };
+    document.head.appendChild(s);
   }
-  document.head.appendChild(s);
 }
 
-function centralizarModelo(obj){const box=new THREE.Box3().setFromObject(obj);const center=box.getCenter(new THREE.Vector3());const size=box.getSize(new THREE.Vector3());const scale=6/Math.max(size.x,size.y,size.z);obj.scale.setScalar(scale);obj.position.sub(center.multiplyScalar(scale));obj.position.y+=size.y*scale/2;camRadius=10;updateCamera();}
-function onMouseMove(e){if(!isDragging)return;camTheta-=(e.clientX-prevMouseX)*0.008;camPhi-=(e.clientY-prevMouseY)*0.008;camPhi=Math.max(0.05,Math.min(Math.PI/2-0.02,camPhi));prevMouseX=e.clientX;prevMouseY=e.clientY;updateCamera();}
-function onWheel(e){camRadius=Math.max(2,Math.min(30,camRadius+e.deltaY*0.02));updateCamera();}
-function updateCamera(){if(!threeCamera)return;threeCamera.position.set(camRadius*Math.sin(camPhi)*Math.sin(camTheta),camRadius*Math.cos(camPhi),camRadius*Math.sin(camPhi)*Math.cos(camTheta));threeCamera.lookAt(0,1,0);}
-window.resetCamera=()=>{camTheta=0.5;camPhi=0.8;camRadius=10;updateCamera();};
+function centralizarModelo(obj){
+  const box=new THREE.Box3().setFromObject(obj);
+  const center=box.getCenter(new THREE.Vector3());
+  const size=box.getSize(new THREE.Vector3());
+  const maxDim=Math.max(size.x,size.y,size.z);
+  const scale=8/maxDim;
+  obj.scale.setScalar(scale);
+  obj.position.sub(center.multiplyScalar(scale));
+  obj.position.y+=size.y*scale/2;
+  target=new THREE.Vector3(0, size.y*scale/2, 0);
+  camRadius=maxDim*scale*1.8;
+  updateCamera();
+}
+
+let touchStartDist=0, touchStartTheta=0, touchStartPhi=0, touchStartRadius=0;
+let touch1={x:0,y:0}, touch2={x:0,y:0};
+
+function onTouchStart(e){
+  e.preventDefault();
+  if(e.touches.length===1){
+    isDragging=true; mouseBtn=0;
+    prevMouseX=e.touches[0].clientX; prevMouseY=e.touches[0].clientY;
+  } else if(e.touches.length===2){
+    isDragging=false;
+    touch1={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    touch2={x:e.touches[1].clientX,y:e.touches[1].clientY};
+    touchStartDist=Math.hypot(touch2.x-touch1.x,touch2.y-touch1.y);
+    touchStartRadius=camRadius;
+  }
+}
+function onTouchMove(e){
+  e.preventDefault();
+  if(e.touches.length===1 && isDragging){
+    const dx=e.touches[0].clientX-prevMouseX;
+    const dy=e.touches[0].clientY-prevMouseY;
+    camTheta-=dx*0.008; camPhi-=dy*0.008;
+    camPhi=Math.max(0.05,Math.min(Math.PI/2-0.02,camPhi));
+    prevMouseX=e.touches[0].clientX; prevMouseY=e.touches[0].clientY;
+    updateCamera();
+  } else if(e.touches.length===2){
+    const dist=Math.hypot(e.touches[1].clientX-e.touches[0].clientX, e.touches[1].clientY-e.touches[0].clientY);
+    camRadius=touchStartRadius*(touchStartDist/dist);
+    camRadius=Math.max(1,Math.min(100,camRadius));
+    updateCamera();
+  }
+}
+
+function onMouseMove(e){
+  if(!isDragging) return;
+  const dx=e.clientX-prevMouseX;
+  const dy=e.clientY-prevMouseY;
+  if(mouseBtn===0){
+    // Botão esquerdo — órbita
+    camTheta-=dx*0.006;
+    camPhi-=dy*0.006;
+    camPhi=Math.max(0.02,Math.min(Math.PI/2-0.01,camPhi));
+  } else if(mouseBtn===1||mouseBtn===2){
+    // Botão meio ou direito — pan
+    const panSpeed=camRadius*0.001;
+    const right=new THREE.Vector3();
+    const up=new THREE.Vector3(0,1,0);
+    right.crossVectors(threeCamera.position.clone().sub(target),up).normalize();
+    target.addScaledVector(right, -dx*panSpeed);
+    target.addScaledVector(up, dy*panSpeed);
+  }
+  prevMouseX=e.clientX; prevMouseY=e.clientY;
+  updateCamera();
+}
+
+function onWheel(e){
+  e.preventDefault();
+  camRadius=Math.max(1,Math.min(100,camRadius+e.deltaY*0.03));
+  updateCamera();
+}
+
+function updateCamera(){
+  if(!threeCamera||!target) return;
+  threeCamera.position.set(
+    target.x + camRadius*Math.sin(camPhi)*Math.sin(camTheta),
+    target.y + camRadius*Math.cos(camPhi),
+    target.z + camRadius*Math.sin(camPhi)*Math.cos(camTheta)
+  );
+  threeCamera.lookAt(target);
+}
+
+window.resetCamera=()=>{
+  camTheta=0.6; camPhi=0.7; camRadius=15; panX=0; panY=0;
+  if(target) target.set(0,0,0);
+  updateCamera();
+};
 window.toggleWireframe=()=>{wireMode=!wireMode;meshes.forEach(m=>{if(m.material)m.material.wireframe=wireMode;});};
 window.toggleAutoRotate=()=>{autoRotate=!autoRotate;document.getElementById("btn-rotate").textContent=autoRotate?"⏸":"▶";};
 
