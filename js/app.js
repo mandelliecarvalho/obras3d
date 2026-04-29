@@ -532,46 +532,57 @@ function carregarModelo(url, ext, mtlUrl) {
           centralizarModelo(obj);
           threeScene.add(obj);
           obj.traverse(c=>{
-            if(c.isMesh){
-              // Remove linhas/arestas (geometria muito fina do SketchUp)
-              const geo = c.geometry;
-              if(geo){
-                const pos = geo.attributes.position;
-                if(pos && pos.count < 4) { c.visible=false; return; }
-              }
-              meshes.push(c);
-              if(!mtlMat){
-                c.material=new THREE.MeshPhongMaterial({color:0xCCCCCC,side:THREE.DoubleSide});
-              } else {
-                // Melhora materiais do MTL
-                if(Array.isArray(c.material)){
-                  c.material.forEach(m=>{
-                    m.side=THREE.DoubleSide;
-                    m.depthWrite=true;
-                    m.transparent = m.opacity < 1;
-                    m.alphaTest = 0.1;
-                  });
-                } else {
-                  c.material.side=THREE.DoubleSide;
-                  c.material.depthWrite=true;
-                  c.material.transparent = c.material.opacity < 1;
-                  c.material.alphaTest = 0.1;
-                }
-              }
-              c.castShadow=true;
-              c.receiveShadow=true;
-              // Ajusta materiais para mostrar volume com sombra
-              const mats = Array.isArray(c.material) ? c.material : [c.material];
-              mats.forEach(m => {
-                if(m) {
-                  m.shininess = 10; // pouco brilho para parecer mais real
-                  m.specular = new THREE.Color(0x222222);
-                }
-              });
-            }
-            // Remove linhas soltas (LineSegments do SketchUp)
-            if(c.isLine || c.isLineSegments || c.isLineLoop){
+            // Esconde TODAS as linhas e arestas do SketchUp
+            if(c.isLine || c.isLineSegments || c.isLineLoop || c.type==="Line" || c.type==="LineSegments"){
               c.visible=false;
+              return;
+            }
+
+            if(c.isMesh){
+              const geo = c.geometry;
+
+              // Remove faces com poucos vértices (arestas disfarçadas de mesh)
+              if(geo && geo.attributes.position && geo.attributes.position.count < 3){
+                c.visible=false;
+                return;
+              }
+
+              // Detecta e esconde materiais que são claramente arestas (cor preta/vermelha pura + geometria fina)
+              const checkMat = (m) => {
+                if(!m) return;
+                const col = m.color;
+                if(col){
+                  // Se for vermelho puro ou preto puro provavelmente é aresta
+                  const isRed = col.r > 0.8 && col.g < 0.2 && col.b < 0.2;
+                  const isBlack = col.r < 0.1 && col.g < 0.1 && col.b < 0.1;
+                  if((isRed || isBlack) && geo && geo.attributes.position){
+                    // Verifica se é geometria muito fina (aresta)
+                    const box = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
+                    const size = box.getSize(new THREE.Vector3());
+                    const minDim = Math.min(size.x, size.y, size.z);
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    if(maxDim > 0 && minDim/maxDim < 0.01) { c.visible=false; return; }
+                  }
+                }
+                // Aplica configurações de qualidade
+                m.side = THREE.DoubleSide;
+                m.depthWrite = true;
+                m.transparent = m.opacity < 0.99;
+                m.alphaTest = 0.05;
+                m.shininess = 15;
+                m.specular = new THREE.Color(0x111111);
+              };
+
+              if(Array.isArray(c.material)) c.material.forEach(checkMat);
+              else checkMat(c.material);
+
+              if(!mtlMat){
+                c.material = new THREE.MeshPhongMaterial({color:0xCCCCCC, side:THREE.DoubleSide, shininess:15});
+              }
+
+              c.castShadow = true;
+              c.receiveShadow = true;
+              meshes.push(c);
             }
           });
         }, undefined, e=>console.error(e));
