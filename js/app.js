@@ -393,7 +393,7 @@ window.handleFileSelect = (e) => { if(e.target.files[0]) enviarArquivo(e.target.
 async function enviarArquivo(file) {
   if (!obraAtiva) return;
   const ext = file.name.split(".").pop().toLowerCase();
-  if (!["obj","gltf","glb"].includes(ext)) { document.getElementById("upload-error").textContent="Formato não suportado."; document.getElementById("upload-error").style.display="block"; return; }
+  if (!["obj","gltf","glb","mtl"].includes(ext)) { document.getElementById("upload-error").textContent="Formato não suportado. Use .obj, .gltf, .glb ou .mtl"; document.getElementById("upload-error").style.display="block"; return; }
   const fill = document.getElementById("progress-fill");
   const label = document.getElementById("progress-label");
   document.getElementById("upload-progress").style.display="block";
