@@ -777,3 +777,34 @@ textarea { resize: vertical; }
   .files-grid { grid-template-columns: 1fr; }
   .obra-header-actions { flex-wrap: wrap; }
 }
+
+/* ===== TELA CHEIA ===== */
+.viewer-wrap:-webkit-full-screen,
+.viewer-wrap:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 9999;
+  background: #1A0E0E;
+}
+.viewer-wrap:-webkit-full-screen canvas,
+.viewer-wrap:fullscreen canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+.viewer-wrap:-webkit-full-screen #viewer-controls,
+.viewer-wrap:fullscreen #viewer-controls {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 10000;
+}
+.viewer-wrap:-webkit-full-screen #viewer-label,
+.viewer-wrap:fullscreen #viewer-label {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+}

@@ -680,6 +680,49 @@ window.resetCamera=()=>{
 window.toggleWireframe=()=>{wireMode=!wireMode;meshes.forEach(m=>{if(m.material)m.material.wireframe=wireMode;});};
 window.toggleAutoRotate=()=>{autoRotate=!autoRotate;document.getElementById("btn-rotate").textContent=autoRotate?"⏸":"▶";};
 
+window.toggleFullscreen = () => {
+  const wrap = document.getElementById("three-canvas").parentElement;
+  const btn = document.getElementById("btn-fullscreen");
+
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    // Entrar em tela cheia
+    const el = wrap;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    btn.textContent = "✕";
+    btn.title = "Sair da tela cheia";
+  } else {
+    // Sair de tela cheia
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    btn.textContent = "⛶";
+    btn.title = "Tela cheia";
+  }
+};
+
+// Atualiza o tamanho do renderer ao entrar/sair da tela cheia
+document.addEventListener("fullscreenchange", ajustarRenderer);
+document.addEventListener("webkitfullscreenchange", ajustarRenderer);
+
+function ajustarRenderer() {
+  if (!threeRenderer || !threeCamera) return;
+  const canvas = document.getElementById("three-canvas");
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  threeRenderer.setSize(w, h);
+  threeCamera.aspect = w / h;
+  threeCamera.updateProjectionMatrix();
+  const btn = document.getElementById("btn-fullscreen");
+  if (btn) {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      btn.textContent = "✕";
+    } else {
+      btn.textContent = "⛶";
+    }
+  }
+}
+
 function destruirViewer(){
   cancelAnimationFrame(threeAnimId);window.removeEventListener("mousemove",onMouseMove);
   if(threeRenderer){threeRenderer.dispose();threeRenderer=null;}
