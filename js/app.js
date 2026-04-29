@@ -569,35 +569,67 @@ function centralizarModelo(obj){
   updateCamera();
 }
 
-let touchStartDist=0, touchStartTheta=0, touchStartPhi=0, touchStartRadius=0;
-let touch1={x:0,y:0}, touch2={x:0,y:0};
+let touchStartDist=0, touchStartRadius=0;
+let touchPrevMidX=0, touchPrevMidY=0;
+let touchPrevX=0, touchPrevY=0;
 
 function onTouchStart(e){
   e.preventDefault();
   if(e.touches.length===1){
-    isDragging=true; mouseBtn=0;
-    prevMouseX=e.touches[0].clientX; prevMouseY=e.touches[0].clientY;
+    // 1 dedo — órbita
+    isDragging=true;
+    touchPrevX=e.touches[0].clientX;
+    touchPrevY=e.touches[0].clientY;
   } else if(e.touches.length===2){
+    // 2 dedos — pan + zoom
     isDragging=false;
-    touch1={x:e.touches[0].clientX,y:e.touches[0].clientY};
-    touch2={x:e.touches[1].clientX,y:e.touches[1].clientY};
-    touchStartDist=Math.hypot(touch2.x-touch1.x,touch2.y-touch1.y);
+    const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    touchPrevMidX=midX; touchPrevMidY=midY;
+    touchStartDist=Math.hypot(
+      e.touches[1].clientX-e.touches[0].clientX,
+      e.touches[1].clientY-e.touches[0].clientY
+    );
     touchStartRadius=camRadius;
   }
 }
+
 function onTouchMove(e){
   e.preventDefault();
   if(e.touches.length===1 && isDragging){
-    const dx=e.touches[0].clientX-prevMouseX;
-    const dy=e.touches[0].clientY-prevMouseY;
-    camTheta-=dx*0.008; camPhi-=dy*0.008;
-    camPhi=Math.max(0.05,Math.min(Math.PI/2-0.02,camPhi));
-    prevMouseX=e.touches[0].clientX; prevMouseY=e.touches[0].clientY;
+    // 1 dedo — órbita
+    const dx=e.touches[0].clientX-touchPrevX;
+    const dy=e.touches[0].clientY-touchPrevY;
+    camTheta-=dx*0.007;
+    camPhi-=dy*0.007;
+    camPhi=Math.max(0.02,Math.min(Math.PI/2-0.01,camPhi));
+    touchPrevX=e.touches[0].clientX;
+    touchPrevY=e.touches[0].clientY;
     updateCamera();
   } else if(e.touches.length===2){
-    const dist=Math.hypot(e.touches[1].clientX-e.touches[0].clientX, e.touches[1].clientY-e.touches[0].clientY);
+    // 2 dedos — zoom (pinça) + pan (arrastar)
+    const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    const dist=Math.hypot(
+      e.touches[1].clientX-e.touches[0].clientX,
+      e.touches[1].clientY-e.touches[0].clientY
+    );
+
+    // Zoom por pinça
     camRadius=touchStartRadius*(touchStartDist/dist);
     camRadius=Math.max(1,Math.min(100,camRadius));
+
+    // Pan pelo movimento do ponto médio entre os dois dedos
+    const dx=midX-touchPrevMidX;
+    const dy=midY-touchPrevMidY;
+    const panSpeed=camRadius*0.002;
+    const right=new THREE.Vector3();
+    const up=new THREE.Vector3(0,1,0);
+    right.crossVectors(threeCamera.position.clone().sub(target),up).normalize();
+    target.addScaledVector(right,-dx*panSpeed);
+    target.addScaledVector(up,dy*panSpeed);
+
+    touchPrevMidX=midX; touchPrevMidY=midY;
     updateCamera();
   }
 }
