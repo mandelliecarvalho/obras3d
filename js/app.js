@@ -107,7 +107,7 @@ async function carregarUsuario() {
 // AUTH
 // ============================================================
 window.fazerLogin = () => {
-  if (!gapiInited || !gisInited) { alert("Aguarde carregar..."); return; }
+  if (!gapiInited || !gisInited) { setTimeout(fazerLogin, 500); return; }
   tokenClient.requestAccessToken({ prompt: "select_account" });
 };
 
