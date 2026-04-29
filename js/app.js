@@ -465,13 +465,29 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=true;
 
-  // Iluminação melhorada
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.85));
-  const dir=new THREE.DirectionalLight(0xffffff,0.7); dir.position.set(10,20,10); dir.castShadow=true; threeScene.add(dir);
-  const dir2=new THREE.DirectionalLight(0xffffff,0.3); dir2.position.set(-10,10,-10); threeScene.add(dir2);
-  const dir3=new THREE.DirectionalLight(0xffffff,0.2); dir3.position.set(0,10,-15); threeScene.add(dir3);
-  const hemi=new THREE.HemisphereLight(0xddeeff,0x776655,0.5); threeScene.add(hemi);
+  // Iluminação com volume e sombra
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.35)); // bem suave para preservar sombras
+  const dir=new THREE.DirectionalLight(0xffffff, 1.2);
+  dir.position.set(15, 30, 15);
+  dir.castShadow=true;
+  dir.shadow.mapSize.width=2048;
+  dir.shadow.mapSize.height=2048;
+  dir.shadow.camera.near=0.1;
+  dir.shadow.camera.far=500;
+  dir.shadow.camera.left=-50;
+  dir.shadow.camera.right=50;
+  dir.shadow.camera.top=50;
+  dir.shadow.camera.bottom=-50;
+  dir.shadow.bias=-0.001;
+  threeScene.add(dir);
+  // Luz de preenchimento fraca para não "estourar"
+  const fill=new THREE.DirectionalLight(0xaabbcc, 0.25);
+  fill.position.set(-10, 5, -10);
+  threeScene.add(fill);
+  const hemi=new THREE.HemisphereLight(0xffffff, 0x333333, 0.3);
+  threeScene.add(hemi);
   threeRenderer.sortObjects=true;
+  threeRenderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
   threeScene.add(new THREE.GridHelper(50,50,0x2A1008,0x1A0805));
 
@@ -544,6 +560,14 @@ function carregarModelo(url, ext, mtlUrl) {
               }
               c.castShadow=true;
               c.receiveShadow=true;
+              // Ajusta materiais para mostrar volume com sombra
+              const mats = Array.isArray(c.material) ? c.material : [c.material];
+              mats.forEach(m => {
+                if(m) {
+                  m.shininess = 10; // pouco brilho para parecer mais real
+                  m.specular = new THREE.Color(0x222222);
+                }
+              });
             }
             // Remove linhas soltas (LineSegments do SketchUp)
             if(c.isLine || c.isLineSegments || c.isLineLoop){
