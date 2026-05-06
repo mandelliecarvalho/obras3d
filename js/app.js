@@ -372,6 +372,7 @@ async function carregarArquivos() {
           <div style="font-size:11px;color:var(--text-muted)">${tamanho}</div>
           <div class="file-card-actions">
             <button class="btn-mini" onclick="visualizarArquivoDrive('${a.id}','${ext}','${a.name}','${obraAtiva.driveId}')">Visualizar 3D</button>
+            <button class="btn-mini" onclick="compartilharArquivo('${a.id}','${ext}','${a.name}')" style="background:var(--bege-bg);border-color:var(--border-vinho);color:var(--terra-dark)">🔗 Link</button>
             <button class="btn-mini danger" onclick="excluirArquivo('${a.id}','${a.name}')">Excluir</button>
           </div>
         </div>`;
@@ -714,6 +715,100 @@ window.toggleWireframe=()=>{wireMode=!wireMode;meshes.forEach(m=>{if(m.material)
 window.toggleAutoRotate=()=>{autoRotate=!autoRotate;document.getElementById("btn-rotate").textContent=autoRotate?"⏸":"▶";};
 
 let isFakeFullscreen = false;
+
+
+
+// ============================================================
+// COMPARTILHAMENTO — Gera link público do visualizador
+// ============================================================
+window.compartilharArquivo = async (fileId, ext, nome) => {
+  if (!obraAtiva) return;
+
+  // Modal de carregando
+  const modal = document.createElement("div");
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;";
+  modal.innerHTML = `
+    <div style="background:var(--bege-white);border-radius:4px;padding:28px;max-width:420px;width:90%;border:1px solid var(--border);">
+      <h3 style="font-size:13px;font-weight:700;color:var(--terra-dark);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+        🔗 Link de compartilhamento
+      </h3>
+      <p id="share-status" style="font-size:13px;color:var(--text-mid);margin-bottom:16px;">Tornando arquivo público...</p>
+      <div id="share-link-wrap" style="display:none;">
+        <div style="background:var(--bege-bg);border:1px solid var(--border);border-radius:3px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--text-mid);word-break:break-all;margin-bottom:14px;line-height:1.6;" id="share-link-text"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="copiarLink()" style="flex:1;padding:9px;background:var(--terra-dark);color:#fff;border:none;border-radius:2px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">📋 Copiar link</button>
+          <button onclick="this.closest('[data-modal]').remove()" style="padding:9px 14px;background:transparent;border:1px solid var(--border);border-radius:2px;font-size:11px;cursor:pointer;">Fechar</button>
+        </div>
+        <p style="font-size:10px;color:var(--text-muted);margin-top:10px;line-height:1.5;">
+          ⚠️ Qualquer pessoa com este link poderá visualizar o modelo 3D sem precisar fazer login.
+        </p>
+      </div>
+      <div id="share-error" style="display:none;">
+        <p style="font-size:12px;color:#A83030;margin-bottom:12px;">Erro ao gerar link. Tente novamente.</p>
+        <button onclick="this.closest('[data-modal]').remove()" style="padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:2px;font-size:11px;cursor:pointer;">Fechar</button>
+      </div>
+    </div>
+  `;
+  modal.setAttribute("data-modal", "share");
+  modal.querySelector("div").style.fontFamily = "'DM Sans', sans-serif";
+  document.body.appendChild(modal);
+
+  try {
+    // Torna o arquivo público (anyone with link can view)
+    await gapi.client.drive.permissions.create({
+      fileId: fileId,
+      resource: { role: "reader", type: "anyone" }
+    });
+
+    // Procura MTL correspondente e também torna público
+    let mtlId = null;
+    const nomeSemExt = nome.replace(/\.obj$/i, "");
+    try {
+      const res = await gapi.client.drive.files.list({
+        q: `'${obraAtiva.driveId}' in parents and name='${nomeSemExt}.mtl' and trashed=false`,
+        fields: "files(id)"
+      });
+      if (res.result.files.length > 0) {
+        mtlId = res.result.files[0].id;
+        await gapi.client.drive.permissions.create({
+          fileId: mtlId,
+          resource: { role: "reader", type: "anyone" }
+        });
+      }
+    } catch(_) {}
+
+    // Monta URL do viewer público
+    const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
+    const params = new URLSearchParams({
+      fileId,
+      ext,
+      nome: obraAtiva.nome,
+      cidade: obraAtiva.cidade || ""
+    });
+    if (mtlId) params.set("mtlId", mtlId);
+    const link = `${base}/viewer.html?${params.toString()}`;
+
+    // Mostra link
+    document.getElementById("share-status").style.display = "none";
+    document.getElementById("share-link-text").textContent = link;
+    window._shareLink = link;
+    document.getElementById("share-link-wrap").style.display = "block";
+
+  } catch(e) {
+    console.error(e);
+    document.getElementById("share-status").style.display = "none";
+    document.getElementById("share-error").style.display = "block";
+  }
+};
+
+window.copiarLink = () => {
+  if (window._shareLink) {
+    navigator.clipboard.writeText(window._shareLink).then(() => {
+      const btn = document.querySelector("[data-modal] button");
+      if (btn) { btn.textContent = "✅ Copiado!"; setTimeout(() => btn.textContent = "📋 Copiar link", 2000); }
+    });
+  }
+};
 
 
 // ============================================================
