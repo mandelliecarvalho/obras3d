@@ -259,52 +259,93 @@ function init() {
   animate();
 }
 
-function carregarModelo(url, ext, mtlUrl) {
-  const loadObj = (mat) => {
+// Busca o conteúdo do arquivo via fetch (resolve CORS/redirect do Drive)
+async function fetchArquivo(url) {
+  // Tenta URL direta primeiro, depois proxy CORS
+  const urls = [
+    url,
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url.replace("uc?export=download", "uc?export=view")
+  ];
+  for (const u of urls) {
+    try {
+      const r = await fetch(u, { mode: "cors" });
+      if (r.ok) {
+        const text = await r.text();
+        if (text.length > 100 && !text.includes("<!DOCTYPE")) return text;
+      }
+    } catch(_) {}
+  }
+  return null;
+}
+
+function processarObj(obj, hasMat) {
+  document.getElementById("loading").style.display = "none";
+  centralizarModelo(obj);
+  scene.add(obj);
+  obj.traverse(c => {
+    if (c.isLine || c.isLineSegments) { c.visible=false; return; }
+    if (c.isMesh) {
+      meshes.push(c);
+      const mats = Array.isArray(c.material) ? c.material : [c.material];
+      mats.forEach(m => { if(m){ m.side=THREE.DoubleSide; m.shininess=15; m.specular=new THREE.Color(0x111111); } });
+      if (!hasMat) c.material = new THREE.MeshPhongMaterial({ color: 0xCCCCCC, side: THREE.DoubleSide });
+    }
+  });
+}
+
+async function carregarModelo(url, ext, mtlUrl) {
+  // Carrega scripts dos loaders
+  await new Promise(res => {
     const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js";
-    s.onload = () => {
-      const loader = new THREE.OBJLoader();
-      if (mat) loader.setMaterials(mat);
-      loader.load(url, obj => {
-        document.getElementById("loading").style.display = "none";
-        centralizarModelo(obj);
-        scene.add(obj);
-        obj.traverse(c => {
-          if (c.isLine || c.isLineSegments) { c.visible=false; return; }
-          if (c.isMesh) {
-            meshes.push(c);
-            const mats = Array.isArray(c.material) ? c.material : [c.material];
-            mats.forEach(m => { if(m){ m.side=THREE.DoubleSide; m.shininess=15; m.specular=new THREE.Color(0x111111); } });
-            if (!mat) c.material = new THREE.MeshPhongMaterial({ color: 0xCCCCCC, side: THREE.DoubleSide });
-          }
-        });
-      }, undefined, () => showError());
-    };
+    s.src = ext === "obj"
+      ? "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"
+      : "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js";
+    s.onload = res;
     document.head.appendChild(s);
-  };
+  });
 
   if (ext === "obj") {
+    let mat = null;
+
+    // Carrega MTL se existir
     if (mtlUrl) {
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js";
-      s.onload = () => {
-        const ml = new THREE.MTLLoader();
-        ml.load(mtlUrl, mat => { mat.preload(); loadObj(mat); }, undefined, () => loadObj(null));
-      };
-      document.head.appendChild(s);
-    } else { loadObj(null); }
+      try {
+        await new Promise(res => {
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js";
+          s.onload = res;
+          document.head.appendChild(s);
+        });
+        const mtlText = await fetchArquivo(mtlUrl);
+        if (mtlText) {
+          const mtlLoader = new THREE.MTLLoader();
+          mat = mtlLoader.parse(mtlText, "");
+          mat.preload();
+        }
+      } catch(_) {}
+    }
+
+    // Carrega OBJ
+    const objText = await fetchArquivo(url);
+    if (!objText) { showError(); return; }
+    const loader = new THREE.OBJLoader();
+    if (mat) loader.setMaterials(mat);
+    const obj = loader.parse(objText);
+    processarObj(obj, !!mat);
+
   } else {
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js";
-    s.onload = () => {
-      new THREE.GLTFLoader().load(url, gltf => {
-        document.getElementById("loading").style.display = "none";
+    // GLTF/GLB — carrega como binário
+    try {
+      const resp = await fetch(url, { mode: "cors" });
+      if (!resp.ok) throw new Error();
+      const buffer = await resp.arrayBuffer();
+      document.getElementById("loading").style.display = "none";
+      new THREE.GLTFLoader().parse(buffer, "", gltf => {
         centralizarModelo(gltf.scene); scene.add(gltf.scene);
         gltf.scene.traverse(c => { if(c.isMesh){ meshes.push(c); c.material.side=THREE.DoubleSide; } });
-      }, undefined, () => showError());
-    };
-    document.head.appendChild(s);
+      });
+    } catch(_) { showError(); }
   }
 }
 
