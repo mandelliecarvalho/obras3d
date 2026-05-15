@@ -469,27 +469,17 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
 
-  // Iluminação estilo SketchUp — uniforme em todas as direções
-  // Luz ambiente forte como base
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.85));
-
-  // Hemisférica suave para dar leve variação topo/baixo (igual ao SketchUp)
-  const hemi = new THREE.HemisphereLight(0xffffff, 0xeeeeee, 0.4);
+  // Iluminação com volume — um pouco mais clara
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  dir.position.set(15, 30, 15);
+  dir.castShadow = false;
+  threeScene.add(dir);
+  const fill = new THREE.DirectionalLight(0xaabbcc, 0.3);
+  fill.position.set(-10, 5, -10);
+  threeScene.add(fill);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x555555, 0.4);
   threeScene.add(hemi);
-
-  // 6 luzes direcionais fracas em todas as direções
-  // Garante que qualquer ângulo de visualização tenha iluminação
-  const lightPositions = [
-    [10, 10, 10], [-10, 10, -10],
-    [10, 10, -10], [-10, 10, 10],
-    [0, 15, 0], [0, -5, 0]
-  ];
-  lightPositions.forEach(pos => {
-    const l = new THREE.DirectionalLight(0xffffff, 0.15);
-    l.position.set(pos[0], pos[1], pos[2]);
-    threeScene.add(l);
-  });
-
   threeRenderer.sortObjects = true;
 
 
