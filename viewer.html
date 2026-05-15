@@ -179,6 +179,8 @@
 // VIEWER PÚBLICO — sem login, carrega arquivo do Drive por ID
 // ============================================================
 
+const API_KEY = "AIzaSyBAz0gcHP_DmBiqX_x63OlmvFar4GXKzlE";
+
 const params = new URLSearchParams(window.location.search);
 const fileId  = params.get("fileId");
 const mtlId   = params.get("mtlId");
@@ -226,11 +228,7 @@ function init() {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.3));
   scene.add(new THREE.GridHelper(50, 50, 0x2A1008, 0x1A0805));
 
-  // URL pública do arquivo no Drive
-  const url    = `https://drive.google.com/uc?export=download&id=${fileId}`;
-  const mtlUrl = mtlId ? `https://drive.google.com/uc?export=download&id=${mtlId}` : null;
-
-  carregarModelo(url, ext, mtlUrl);
+  carregarModelo(fileId, ext, mtlId);
 
   // Eventos mouse
   canvas.addEventListener("mousedown", e => { isDragging=true; mouseBtn=e.button; prevX=e.clientX; prevY=e.clientY; e.preventDefault(); });
@@ -259,23 +257,22 @@ function init() {
   animate();
 }
 
-// Busca o conteúdo do arquivo via fetch (resolve CORS/redirect do Drive)
-async function fetchArquivo(url) {
-  // Tenta URL direta primeiro, depois proxy CORS
-  const urls = [
-    url,
-    `https://corsproxy.io/?${encodeURIComponent(url)}`,
-    url.replace("uc?export=download", "uc?export=view")
-  ];
-  for (const u of urls) {
-    try {
-      const r = await fetch(u, { mode: "cors" });
-      if (r.ok) {
-        const text = await r.text();
-        if (text.length > 100 && !text.includes("<!DOCTYPE")) return text;
-      }
-    } catch(_) {}
-  }
+// Busca arquivo do Drive via API Key (sem CORS)
+async function fetchArquivo(fId) {
+  try {
+    const url = `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&key=${API_KEY}`;
+    const r = await fetch(url);
+    if (r.ok) return await r.text();
+  } catch(e) { console.error("fetchArquivo error:", e); }
+  return null;
+}
+
+async function fetchArquivoBinario(fId) {
+  try {
+    const url = `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&key=${API_KEY}`;
+    const r = await fetch(url);
+    if (r.ok) return await r.arrayBuffer();
+  } catch(e) { console.error(e); }
   return null;
 }
 
@@ -294,7 +291,7 @@ function processarObj(obj, hasMat) {
   });
 }
 
-async function carregarModelo(url, ext, mtlUrl) {
+async function carregarModelo(fId, ext, mtlFId) {
   // Carrega scripts dos loaders
   await new Promise(res => {
     const s = document.createElement("script");
@@ -309,7 +306,7 @@ async function carregarModelo(url, ext, mtlUrl) {
     let mat = null;
 
     // Carrega MTL se existir
-    if (mtlUrl) {
+    if (mtlFId) {
       try {
         await new Promise(res => {
           const s = document.createElement("script");
@@ -317,7 +314,7 @@ async function carregarModelo(url, ext, mtlUrl) {
           s.onload = res;
           document.head.appendChild(s);
         });
-        const mtlText = await fetchArquivo(mtlUrl);
+        const mtlText = await fetchArquivo(mtlFId);
         if (mtlText) {
           const mtlLoader = new THREE.MTLLoader();
           mat = mtlLoader.parse(mtlText, "");
@@ -327,7 +324,7 @@ async function carregarModelo(url, ext, mtlUrl) {
     }
 
     // Carrega OBJ
-    const objText = await fetchArquivo(url);
+    const objText = await fetchArquivo(fId);
     if (!objText) { showError(); return; }
     const loader = new THREE.OBJLoader();
     if (mat) loader.setMaterials(mat);
@@ -335,11 +332,10 @@ async function carregarModelo(url, ext, mtlUrl) {
     processarObj(obj, !!mat);
 
   } else {
-    // GLTF/GLB — carrega como binário
+    // GLTF/GLB — carrega como binário via API key
     try {
-      const resp = await fetch(url, { mode: "cors" });
-      if (!resp.ok) throw new Error();
-      const buffer = await resp.arrayBuffer();
+      const buffer = await fetchArquivoBinario(fId);
+      if (!buffer) throw new Error();
       document.getElementById("loading").style.display = "none";
       new THREE.GLTFLoader().parse(buffer, "", gltf => {
         centralizarModelo(gltf.scene); scene.add(gltf.scene);
