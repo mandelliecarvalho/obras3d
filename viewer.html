@@ -219,13 +219,17 @@ function init() {
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Iluminação
-  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.1);
-  dir.position.set(15, 30, 15); scene.add(dir);
-  const fill = new THREE.DirectionalLight(0xaabbcc, 0.25);
-  fill.position.set(-10, 5, -10); scene.add(fill);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.3));
+  // Iluminação estilo SketchUp — uniforme em todas as direções
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xeeeeee, 0.4));
+  const lightPositions = [
+    [10,10,10],[-10,10,-10],[10,10,-10],[-10,10,10],[0,15,0],[0,-5,0]
+  ];
+  lightPositions.forEach(p => {
+    const l = new THREE.DirectionalLight(0xffffff, 0.15);
+    l.position.set(p[0], p[1], p[2]);
+    scene.add(l);
+  });
   scene.add(new THREE.GridHelper(50, 50, 0x2A1008, 0x1A0805));
 
   carregarModelo(fileId, ext, mtlId);
