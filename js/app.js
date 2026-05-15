@@ -469,18 +469,19 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
 
-  // Iluminação com volume — um pouco mais clara
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  // Iluminação com volume e sombra
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.35)); // bem suave para preservar sombras
+  const dir=new THREE.DirectionalLight(0xffffff, 1.2);
   dir.position.set(15, 30, 15);
-  dir.castShadow = false;
+  dir.castShadow=false;
   threeScene.add(dir);
-  const fill = new THREE.DirectionalLight(0xaabbcc, 0.3);
+  // Luz de preenchimento fraca para não "estourar"
+  const fill=new THREE.DirectionalLight(0xaabbcc, 0.25);
   fill.position.set(-10, 5, -10);
   threeScene.add(fill);
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x555555, 0.4);
+  const hemi=new THREE.HemisphereLight(0xffffff, 0x333333, 0.3);
   threeScene.add(hemi);
-  threeRenderer.sortObjects = true;
+  threeRenderer.sortObjects=true;
 
 
   threeScene.add(new THREE.GridHelper(50,50,0x2A1008,0x1A0805));
