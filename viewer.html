@@ -253,15 +253,15 @@ function init() {
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Iluminação uniforme com leve sombreamento para arestas
-  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xdddddd, 0.5));
-  const cornerLights = [[10,15,10],[-10,15,10],[10,15,-10],[-10,15,-10]];
-  cornerLights.forEach(p => {
-    const l = new THREE.DirectionalLight(0xffffff, 0.25);
-    l.position.set(p[0], p[1], p[2]);
-    scene.add(l);
-  });
+  // Luz ambiente moderada — base com contraste suave
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.45));
+  const main = new THREE.DirectionalLight(0xffffff, 0.7);
+  main.position.set(10, 20, 8); scene.add(main);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-12, 8, -10); scene.add(fill);
+  const front = new THREE.DirectionalLight(0xffffff, 0.2);
+  front.position.set(0, 5, 15); scene.add(front);
   scene.add(new THREE.GridHelper(50, 50, 0x2A1008, 0x1A0805));
 
   carregarModelo(fileId, ext, mtlId);

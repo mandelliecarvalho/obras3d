@@ -469,17 +469,22 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
 
-  // Iluminação uniforme com leve sombreamento para arestas
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.7));
-  // Hemisférica suave dá leve variação topo/baixo
-  threeScene.add(new THREE.HemisphereLight(0xffffff, 0xdddddd, 0.5));
-  // 4 luzes direcionais dos cantos superiores (iguais = sem lado escuro)
-  const cornerLights = [[10,15,10],[-10,15,10],[10,15,-10],[-10,15,-10]];
-  cornerLights.forEach(p => {
-    const l = new THREE.DirectionalLight(0xffffff, 0.25);
-    l.position.set(p[0], p[1], p[2]);
-    threeScene.add(l);
-  });
+  // Luz ambiente moderada — base com contraste suave
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  // Hemisférica: topo claro, baixo médio para diferenciar faces horizontais/verticais
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.45));
+  // Luz principal forte (dá sombreamento nas arestas)
+  const main = new THREE.DirectionalLight(0xffffff, 0.7);
+  main.position.set(10, 20, 8);
+  threeScene.add(main);
+  // Luz secundária mais fraca do outro lado (evita lado totalmente escuro)
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-12, 8, -10);
+  threeScene.add(fill);
+  // Luz frontal suave para detalhes
+  const front = new THREE.DirectionalLight(0xffffff, 0.2);
+  front.position.set(0, 5, 15);
+  threeScene.add(front);
   threeRenderer.sortObjects = true;
 
 
