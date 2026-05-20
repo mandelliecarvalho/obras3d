@@ -469,17 +469,17 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
 
-  // Iluminação com volume — um pouco mais clara
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-  dir.position.set(15, 30, 15);
-  dir.castShadow = false;
-  threeScene.add(dir);
-  const fill = new THREE.DirectionalLight(0xaabbcc, 0.3);
-  fill.position.set(-10, 5, -10);
-  threeScene.add(fill);
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x555555, 0.4);
-  threeScene.add(hemi);
+  // Iluminação uniforme com leve sombreamento para arestas
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  // Hemisférica suave dá leve variação topo/baixo
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0xdddddd, 0.5));
+  // 4 luzes direcionais dos cantos superiores (iguais = sem lado escuro)
+  const cornerLights = [[10,15,10],[-10,15,10],[10,15,-10],[-10,15,-10]];
+  cornerLights.forEach(p => {
+    const l = new THREE.DirectionalLight(0xffffff, 0.25);
+    l.position.set(p[0], p[1], p[2]);
+    threeScene.add(l);
+  });
   threeRenderer.sortObjects = true;
 
 
@@ -541,8 +541,9 @@ function carregarModelo(url, ext, mtlUrl) {
                 m.depthWrite = true;
                 m.transparent = m.opacity < 0.99;
                 m.alphaTest = 0.05;
-                m.shininess = 20;
-                m.specular = new THREE.Color(0x111111);
+                // Sem brilho — material fosco uniforme tipo SketchUp
+                m.shininess = 0;
+                if(m.specular) m.specular.setHex(0x000000);
               });
 
               if(!mtlMat){
