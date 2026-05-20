@@ -51,6 +51,35 @@
       letter-spacing: 0.06em; text-transform: uppercase;
     }
 
+    /* Aviso legal */
+    .aviso-legal {
+      background: rgba(138, 42, 32, 0.95);
+      color: rgba(255, 255, 255, 0.95);
+      padding: 10px 20px;
+      font-size: 11px;
+      line-height: 1.5;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+    }
+    .aviso-legal strong {
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+    .aviso-direitos {
+      display: inline-block;
+      margin-left: 6px;
+      opacity: 0.7;
+      font-size: 10px;
+      font-style: italic;
+    }
+    @media (max-width: 600px) {
+      .aviso-legal { font-size: 10px; padding: 8px 14px; }
+      .aviso-direitos { display: block; margin-left: 0; margin-top: 2px; }
+    }
+
     /* Viewer */
     .viewer-wrap { flex: 1; position: relative; }
     canvas { width: 100% !important; height: 100% !important; display: block; }
@@ -139,6 +168,11 @@
     </div>
   </div>
 
+  <!-- Aviso legal -->
+  <div class="aviso-legal">
+    <strong>ATENÇÃO:</strong> 3D da residência apenas para visualização da volumetria. As medidas dos projetos executivos são as que prevalecem como regra. <span class="aviso-direitos">Direitos autorais reservados.</span>
+  </div>
+
   <!-- Viewer -->
   <div class="viewer-wrap" id="viewer-wrap">
     <canvas id="three-canvas"></canvas>
@@ -219,13 +253,13 @@ function init() {
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Iluminação
-  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+  // Iluminação com volume — um pouco mais clara
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
   dir.position.set(15, 30, 15); scene.add(dir);
-  const fill = new THREE.DirectionalLight(0xaabbcc, 0.25);
+  const fill = new THREE.DirectionalLight(0xaabbcc, 0.3);
   fill.position.set(-10, 5, -10); scene.add(fill);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.3));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 0.4));
   scene.add(new THREE.GridHelper(50, 50, 0x2A1008, 0x1A0805));
 
   carregarModelo(fileId, ext, mtlId);
