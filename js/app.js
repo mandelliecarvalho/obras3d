@@ -782,29 +782,98 @@ window.compartilharArquivo = async (fileId, ext, nome) => {
       }
     } catch(_) {}
 
-    // Monta URL do viewer público
-    const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
-    const params = new URLSearchParams({
-      fileId,
-      ext,
-      nome: obraAtiva.nome,
-      cidade: obraAtiva.cidade || ""
-    });
-    if (mtlId) params.set("mtlId", mtlId);
-    const longLink = `${base}/viewer.html?${params.toString()}`;
+    document.getElementById("share-status").textContent = "Gerando código curto...";
 
-    // Encurta com is.gd
-    document.getElementById("share-status").textContent = "Gerando link curto...";
-    let finalLink = longLink;
+    // Gera código curto único (5 caracteres alfanuméricos)
+    const gerarCodigo = () => {
+      const chars = "abcdefghijkmnpqrstuvwxyz23456789";
+      let code = "";
+      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    };
+
+    // Busca ou cria o arquivo de mapeamento
+    let linksFileId = null;
+    let linksData = {};
     try {
-      const shortenRes = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longLink)}`);
-      const shortUrl = await shortenRes.text();
-      if (shortUrl.startsWith("https://is.gd/") || shortUrl.startsWith("http://is.gd/")) {
-        finalLink = shortUrl;
+      const search = await gapi.client.drive.files.list({
+        q: `name='mc-links.json' and '${pastaRaizId}' in parents and trashed=false`,
+        fields: "files(id)"
+      });
+      if (search.result.files.length > 0) {
+        linksFileId = search.result.files[0].id;
+        // Lê o conteúdo
+        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${linksFileId}?alt=media`, {
+          headers: { "Authorization": `Bearer ${accessToken}` }
+        });
+        if (r.ok) linksData = await r.json();
       }
-    } catch(e) { console.warn("is.gd falhou, usando link longo"); }
+    } catch(e) { console.warn("Erro lendo mc-links.json:", e); }
 
-    // Mostra link
+    // Verifica se este arquivo já tem código válido (reaproveita)
+    let codigo = null;
+    const UM_ANO_MS = 365 * 24 * 60 * 60 * 1000;
+    const agora = Date.now();
+    for (const [k, v] of Object.entries(linksData)) {
+      if (v.f === fileId) {
+        // Só reaproveita se não estiver expirado (menos de 1 ano)
+        const idade = agora - (v.t || 0);
+        if (idade < UM_ANO_MS) {
+          codigo = k;
+          break;
+        }
+      }
+    }
+
+    // Se não tem, cria um novo código único e limpa expirados
+    if (!codigo) {
+      // Remove links expirados (mais de 1 ano)
+      for (const k of Object.keys(linksData)) {
+        const idade = agora - (linksData[k].t || 0);
+        if (idade >= UM_ANO_MS) delete linksData[k];
+      }
+      do { codigo = gerarCodigo(); } while (linksData[codigo]);
+      linksData[codigo] = {
+        f: fileId,
+        m: mtlId || null,
+        e: ext,
+        n: obraAtiva.nome,
+        c: obraAtiva.cidade || "",
+        t: Date.now() // timestamp de criação (para expiração)
+      };
+
+      // Salva no Drive
+      const blob = new Blob([JSON.stringify(linksData)], { type: "application/json" });
+      const form = new FormData();
+      const metadata = linksFileId
+        ? {}
+        : { name: "mc-links.json", parents: [pastaRaizId], mimeType: "application/json" };
+      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      form.append("file", blob);
+
+      const url = linksFileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${linksFileId}?uploadType=multipart`
+        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+      const method = linksFileId ? "PATCH" : "POST";
+
+      const saveRes = await fetch(url, {
+        method, body: form,
+        headers: { "Authorization": `Bearer ${accessToken}` }
+      });
+      const saveData = await saveRes.json();
+      if (!linksFileId) linksFileId = saveData.id;
+
+      // Torna o JSON público
+      await gapi.client.drive.permissions.create({
+        fileId: linksFileId,
+        resource: { role: "reader", type: "anyone" }
+      });
+    }
+
+    // Monta link curto
+    const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
+    const finalLink = `${base}/viewer.html?c=${codigo}`;
+
     document.getElementById("share-status").style.display = "none";
     document.getElementById("share-link-text").textContent = finalLink;
     window._shareLink = finalLink;
