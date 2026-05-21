@@ -791,12 +791,23 @@ window.compartilharArquivo = async (fileId, ext, nome) => {
       cidade: obraAtiva.cidade || ""
     });
     if (mtlId) params.set("mtlId", mtlId);
-    const link = `${base}/viewer.html?${params.toString()}`;
+    const longLink = `${base}/viewer.html?${params.toString()}`;
+
+    // Encurta com is.gd
+    document.getElementById("share-status").textContent = "Gerando link curto...";
+    let finalLink = longLink;
+    try {
+      const shortenRes = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longLink)}`);
+      const shortUrl = await shortenRes.text();
+      if (shortUrl.startsWith("https://is.gd/") || shortUrl.startsWith("http://is.gd/")) {
+        finalLink = shortUrl;
+      }
+    } catch(e) { console.warn("is.gd falhou, usando link longo"); }
 
     // Mostra link
     document.getElementById("share-status").style.display = "none";
-    document.getElementById("share-link-text").textContent = link;
-    window._shareLink = link;
+    document.getElementById("share-link-text").textContent = finalLink;
+    window._shareLink = finalLink;
     document.getElementById("share-link-wrap").style.display = "block";
 
   } catch(e) {
