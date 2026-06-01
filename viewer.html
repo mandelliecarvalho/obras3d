@@ -147,6 +147,55 @@
       .header-obra .nome { font-size: 12px; }
       .viewer-hint { display: none; }
     }
+
+    /* Lista vertical de 3Ds (modo ambiente) */
+    .lista-3ds {
+      flex: 1; overflow-y: auto; background: #1A0E0E;
+      padding: 20px; -webkit-overflow-scrolling: touch;
+    }
+    .item-3d {
+      background: #2A1612;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      max-width: 1100px;
+      margin-left: auto; margin-right: auto;
+    }
+    .item-3d-header {
+      padding: 12px 18px;
+      background: rgba(138,42,32,0.4);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .item-3d-titulo {
+      font-size: 13px; font-weight: 700; color: #fff;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .item-3d-canvas-wrap {
+      position: relative;
+      height: 480px;
+      background: #160A08;
+    }
+    .item-3d-canvas-wrap canvas {
+      width: 100% !important; height: 100% !important; display: block;
+    }
+    .item-3d-controles {
+      position: absolute; bottom: 12px; right: 12px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .item-3d-loading {
+      position: absolute; inset: 0; display: flex;
+      align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.4); font-size: 12px;
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    @media (max-width: 600px) {
+      .lista-3ds { padding: 12px; }
+      .item-3d { margin-bottom: 16px; }
+      .item-3d-canvas-wrap { height: 340px; }
+      .item-3d-titulo { font-size: 11px; }
+    }
   </style>
 </head>
 <body>
@@ -216,15 +265,56 @@
 const API_KEY = "AIzaSyBAz0gcHP_DmBiqX_x63OlmvFar4GXKzlE";
 
 const params = new URLSearchParams(window.location.search);
-const fileId  = params.get("fileId");
-const mtlId   = params.get("mtlId");
-const nome    = params.get("nome") || "Modelo 3D";
-const cidade  = params.get("cidade") || "";
-const ext     = params.get("ext") || "obj";
+const codigo = params.get("c");
 
-// Atualiza header
-document.getElementById("obra-nome").textContent = nome;
+// Variáveis que vão ser preenchidas (do código curto ou direto dos params)
+let fileId  = params.get("fileId");
+let mtlId   = params.get("mtlId");
+let nome    = params.get("nome") || "Modelo 3D";
+let cidade  = params.get("cidade") || "";
+let ext     = params.get("ext") || "obj";
+
+// Atualiza header inicial
+document.getElementById("obra-nome").textContent = codigo ? "Carregando..." : nome;
 if (cidade) document.getElementById("obra-sub").textContent = cidade;
+
+// Se tem código curto, resolve antes de iniciar
+async function resolverCodigo() {
+  if (!codigo) { init(); return; }
+  try {
+    // Busca o mc-links.json — usa um truque: lista arquivos públicos do projeto
+    // Como precisamos saber o ID, vamos usar uma busca via API key
+    const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name%3D'mc-links.json'%20and%20trashed%3Dfalse&key=${API_KEY}&fields=files(id)`;
+    const sr = await fetch(searchUrl);
+    const sd = await sr.json();
+    if (!sd.files || !sd.files.length) { showError(); return; }
+    const linksFileId = sd.files[0].id;
+
+    const dataRes = await fetch(`https://www.googleapis.com/drive/v3/files/${linksFileId}?alt=media&key=${API_KEY}`);
+    const data = await dataRes.json();
+
+    const info = data[codigo];
+    if (!info) { showError(); return; }
+
+    // Verifica expiração (1 ano após criação)
+    const UM_ANO_MS = 365 * 24 * 60 * 60 * 1000;
+    if (info.t && (Date.now() - info.t) >= UM_ANO_MS) {
+      showExpired();
+      return;
+    }
+
+    fileId = info.f;
+    mtlId  = info.m;
+    ext    = info.e;
+    nome   = info.n;
+    cidade = info.c || "";
+
+    document.getElementById("obra-nome").textContent = nome;
+    if (cidade) document.getElementById("obra-sub").textContent = cidade;
+
+    init();
+  } catch(e) { console.error(e); showError(); }
+}
 
 // Three.js state
 let renderer, scene, camera, animId;
@@ -386,6 +476,18 @@ function showError() {
   document.getElementById("error-state").style.display = "flex";
 }
 
+function showExpired() {
+  document.getElementById("loading").style.display = "none";
+  const err = document.getElementById("error-state");
+  err.innerHTML = `
+    <img src="img/logo-white.png" style="width:50px;height:50px;opacity:0.2" alt="" />
+    <p><strong style="color:rgba(255,255,255,0.6)">Link expirado</strong><br><br>
+    Este link de compartilhamento expirou (válido por 1 ano).<br>
+    Entre em contato com a Mandelli & Carvalho para receber um novo link.</p>
+  `;
+  err.style.display = "flex";
+}
+
 function centralizarModelo(obj) {
   const box = new THREE.Box3().setFromObject(obj);
   const center = box.getCenter(new THREE.Vector3());
@@ -495,7 +597,7 @@ document.addEventListener("fullscreenchange", ajustarRenderer);
 document.addEventListener("webkitfullscreenchange", ajustarRenderer);
 
 // Inicia
-init();
+resolverCodigo();
 </script>
 </body>
 </html>
