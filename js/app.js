@@ -20,9 +20,6 @@ let obraAtiva = null;
 let pastaRaizId = null;
 let pastasCidades = {}; // { "Maringá": "driveId", "Porto Rico": "driveId" }
 let tabAtiva = "viewer";
-let categoriaAtiva = "arquitetonico"; // "arquitetonico" | "interiores"
-let ambienteAtivo = null; // {driveId, nome} quando estiver dentro de um ambiente
-let pastasCategorias = {}; // { driveId_obra: { arquitetonico: id, interiores: id } }
 
 let threeRenderer = null, threeScene = null, threeCamera = null, threeAnimId = null;
 let wireMode = false, autoRotate = false, meshes = [];
@@ -249,71 +246,10 @@ window.selecionarObra = async (driveId, cidade) => {
 
   document.getElementById("empty-state").style.display = "none";
   document.getElementById("obra-panel").classList.add("visible");
-
-  // Garante as pastas Arquitetônico e Interiores
-  await garantirPastasCategorias();
-  categoriaAtiva = "arquitetonico";
-  ambienteAtivo = null;
-  atualizarSubAbas();
-
   setTab("viewer", document.querySelector(".tab"));
   carregarArquivos();
   document.querySelectorAll(".obra-item").forEach(el => el.classList.toggle("active", el.getAttribute("onclick")?.includes(driveId)));
 };
-
-async function garantirPastasCategorias() {
-  if (!obraAtiva) return;
-  if (pastasCategorias[obraAtiva.driveId]) return;
-  const cats = { arquitetonico: "Arquitetônico", interiores: "Interiores" };
-  const ids = {};
-  for (const [key, name] of Object.entries(cats)) {
-    const res = await gapi.client.drive.files.list({
-      q: `'${obraAtiva.driveId}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: "files(id)"
-    });
-    if (res.result.files.length > 0) {
-      ids[key] = res.result.files[0].id;
-    } else {
-      const created = await gapi.client.drive.files.create({
-        resource: { name, mimeType: "application/vnd.google-apps.folder", parents: [obraAtiva.driveId] },
-        fields: "id"
-      });
-      ids[key] = created.result.id;
-    }
-  }
-  pastasCategorias[obraAtiva.driveId] = ids;
-}
-
-window.trocarCategoria = (cat) => {
-  categoriaAtiva = cat;
-  ambienteAtivo = null;
-  atualizarSubAbas();
-  carregarArquivos();
-};
-
-window.voltarParaAmbientes = () => {
-  ambienteAtivo = null;
-  atualizarSubAbas();
-  carregarArquivos();
-};
-
-function atualizarSubAbas() {
-  const wrap = document.getElementById("sub-abas-row");
-  if (!wrap) return;
-  const arqClass = categoriaAtiva === "arquitetonico" ? "active" : "";
-  const intClass = categoriaAtiva === "interiores" ? "active" : "";
-  let breadcrumb = "";
-  if (categoriaAtiva === "interiores" && ambienteAtivo) {
-    breadcrumb = `<button class="breadcrumb-back" onclick="voltarParaAmbientes()">← Ambientes</button> <span class="breadcrumb-current">${ambienteAtivo.nome}</span>`;
-  }
-  wrap.innerHTML = `
-    <div class="sub-abas">
-      <button class="sub-aba ${arqClass}" onclick="trocarCategoria('arquitetonico')">🏠 Arquitetônico</button>
-      <button class="sub-aba ${intClass}" onclick="trocarCategoria('interiores')">🛋️ Interiores</button>
-    </div>
-    ${breadcrumb ? `<div class="breadcrumb">${breadcrumb}</div>` : ""}
-  `;
-}
 
 window.abrirModalNovaObra = () => { document.getElementById("modal-obra").style.display = "flex"; document.getElementById("nova-nome").focus(); };
 window.fecharModalObra = (e) => { if (e && e.target !== document.getElementById("modal-obra")) return; document.getElementById("modal-obra").style.display = "none"; };
@@ -418,59 +354,14 @@ window.setTab = (tab, el) => {
 async function carregarArquivos() {
   if (!obraAtiva) return;
   const grid = document.getElementById("files-grid");
-  grid.innerHTML = `<div class="loading-files">Carregando...</div>`;
-
+  grid.innerHTML = `<div class="loading-files">Carregando arquivos do Drive...</div>`;
   try {
-    await garantirPastasCategorias();
-    const cats = pastasCategorias[obraAtiva.driveId];
-
-    // INTERIORES — sem ambiente selecionado: mostra lista de ambientes
-    if (categoriaAtiva === "interiores" && !ambienteAtivo) {
-      const res = await gapi.client.drive.files.list({
-        q: `'${cats.interiores}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-        fields: "files(id, name, createdTime)",
-        orderBy: "name"
-      });
-      const ambientes = res.result.files;
-      let html = `
-        <div class="ambiente-card novo" onclick="novoAmbiente()">
-          <div class="ambiente-icon-novo">+</div>
-          <div class="ambiente-name">Novo Ambiente</div>
-        </div>
-      `;
-      html += ambientes.map(a => `
-        <div class="ambiente-card" onclick="abrirAmbiente('${a.id}','${a.name.replace(/'/g, "\\'")}')">
-          <div class="ambiente-icon">🛋️</div>
-          <div class="ambiente-name">${a.name}</div>
-          <div class="ambiente-actions">
-            <button class="btn-mini" onclick="event.stopPropagation();compartilharAmbiente('${a.id}','${a.name.replace(/'/g, "\\'")}')" style="background:var(--bege-bg);border-color:var(--border-vinho);color:var(--terra-dark)">🔗 Link</button>
-            <button class="btn-mini danger" onclick="event.stopPropagation();excluirAmbiente('${a.id}','${a.name.replace(/'/g, "\\'")}')">Excluir</button>
-          </div>
-        </div>
-      `).join("");
-      grid.className = "ambientes-grid";
-      grid.innerHTML = html;
-      return;
-    }
-
-    grid.className = "files-grid";
-
-    // Define pasta a listar
-    const pastaParaListar = ambienteAtivo
-      ? ambienteAtivo.driveId
-      : cats[categoriaAtiva];
-
     const res = await gapi.client.drive.files.list({
-      q: `'${pastaParaListar}' in parents and trashed=false`,
+      q: `'${obraAtiva.driveId}' in parents and trashed=false`,
       fields: "files(id, name, size, mimeType)", orderBy: "createdTime desc"
     });
     const arquivos = res.result.files.filter(f => f.mimeType !== "application/vnd.google-apps.folder");
-
-    if (!arquivos.length) {
-      grid.innerHTML = `<div class="loading-files">Nenhum arquivo ainda.<br><br>Clique em "Enviar arquivo" para adicionar.</div>`;
-      return;
-    }
-
+    if (!arquivos.length) { grid.innerHTML = `<div class="loading-files">Nenhum arquivo ainda.<br><br>Clique em "Enviar arquivo" para adicionar.</div>`; return; }
     grid.innerHTML = arquivos.map(a => {
       const ext = a.name.split(".").pop().toLowerCase();
       const tamanho = a.size ? (a.size/1024/1024).toFixed(1)+" MB" : "";
@@ -480,172 +371,14 @@ async function carregarArquivos() {
           <div class="file-card-name">${a.name}</div>
           <div style="font-size:11px;color:var(--text-muted)">${tamanho}</div>
           <div class="file-card-actions">
-            <button class="btn-mini" onclick="visualizarArquivoDrive('${a.id}','${ext}','${a.name}','${pastaParaListar}')">Visualizar 3D</button>
-            <button class="btn-mini" onclick="compartilharArquivo('${a.id}','${ext}','${a.name}','${pastaParaListar}')" style="background:var(--bege-bg);border-color:var(--border-vinho);color:var(--terra-dark)">🔗 Link</button>
+            <button class="btn-mini" onclick="visualizarArquivoDrive('${a.id}','${ext}','${a.name}','${obraAtiva.driveId}')">Visualizar 3D</button>
+            <button class="btn-mini" onclick="compartilharArquivo('${a.id}','${ext}','${a.name}')" style="background:var(--bege-bg);border-color:var(--border-vinho);color:var(--terra-dark)">🔗 Link</button>
             <button class="btn-mini danger" onclick="excluirArquivo('${a.id}','${a.name}')">Excluir</button>
           </div>
         </div>`;
     }).join("");
-  } catch (e) {
-    grid.innerHTML = `<div class="loading-files" style="color:#A83030">Erro ao carregar.</div>`;
-    console.error(e);
-  }
+  } catch (e) { grid.innerHTML = `<div class="loading-files" style="color:#A83030">Erro ao carregar.</div>`; console.error(e); }
 }
-
-window.abrirAmbiente = (driveId, nome) => {
-  ambienteAtivo = { driveId, nome };
-  atualizarSubAbas();
-  carregarArquivos();
-};
-
-window.novoAmbiente = async () => {
-  const nome = prompt("Nome do ambiente (ex: Sala, Cozinha, Suíte do Casal):");
-  if (!nome || !nome.trim()) return;
-  try {
-    const cats = pastasCategorias[obraAtiva.driveId];
-    await gapi.client.drive.files.create({
-      resource: { name: nome.trim(), mimeType: "application/vnd.google-apps.folder", parents: [cats.interiores] },
-      fields: "id"
-    });
-    carregarArquivos();
-  } catch(e) { alert("Erro ao criar ambiente."); console.error(e); }
-};
-
-window.excluirAmbiente = async (driveId, nome) => {
-  if (!confirm(`Excluir o ambiente "${nome}" e todos os arquivos dele?`)) return;
-  try {
-    await gapi.client.drive.files.delete({ fileId: driveId });
-    carregarArquivos();
-  } catch(e) { alert("Erro ao excluir."); console.error(e); }
-};
-
-window.compartilharAmbiente = async (driveId, nome) => {
-  // Lista todos os arquivos do ambiente e gera link com vários
-  const modal = document.createElement("div");
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;";
-  modal.innerHTML = `
-    <div style="background:var(--bege-white);border-radius:4px;padding:28px;max-width:480px;width:90%;border:1px solid var(--border);font-family:'DM Sans',sans-serif;">
-      <h3 style="font-size:13px;font-weight:700;color:var(--terra-dark);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
-        🔗 Link do ambiente — ${nome}
-      </h3>
-      <p id="share-status" style="font-size:13px;color:var(--text-mid);margin-bottom:16px;">Preparando arquivos do ambiente...</p>
-      <div id="share-link-wrap" style="display:none;">
-        <div style="background:var(--bege-bg);border:1px solid var(--border);border-radius:3px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--text-mid);word-break:break-all;margin-bottom:14px;line-height:1.6;" id="share-link-text"></div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="copiarLink()" style="flex:1;padding:9px;background:var(--terra-dark);color:#fff;border:none;border-radius:2px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">📋 Copiar link</button>
-          <button onclick="this.closest('[data-modal]').remove()" style="padding:9px 14px;background:transparent;border:1px solid var(--border);border-radius:2px;font-size:11px;cursor:pointer;">Fechar</button>
-        </div>
-        <p style="font-size:10px;color:var(--text-muted);margin-top:10px;line-height:1.5;">⚠️ O link mostra todos os 3Ds deste ambiente em lista vertical.</p>
-      </div>
-      <div id="share-error" style="display:none;"><p style="font-size:12px;color:#A83030;margin-bottom:12px;">Erro ao gerar link.</p></div>
-    </div>
-  `;
-  modal.setAttribute("data-modal", "share");
-  document.body.appendChild(modal);
-
-  try {
-    // Lista arquivos do ambiente
-    const res = await gapi.client.drive.files.list({
-      q: `'${driveId}' in parents and trashed=false`,
-      fields: "files(id, name, mimeType)"
-    });
-    const arquivos = res.result.files.filter(f =>
-      f.mimeType !== "application/vnd.google-apps.folder" &&
-      /\.(obj|gltf|glb|mtl)$/i.test(f.name)
-    );
-
-    if (!arquivos.length) {
-      document.getElementById("share-status").textContent = "Este ambiente não tem arquivos 3D ainda.";
-      return;
-    }
-
-    // Torna todos os arquivos públicos
-    document.getElementById("share-status").textContent = "Tornando arquivos públicos...";
-    for (const arq of arquivos) {
-      try {
-        await gapi.client.drive.permissions.create({
-          fileId: arq.id,
-          resource: { role: "reader", type: "anyone" }
-        });
-      } catch(_) {}
-    }
-
-    // Agrupa OBJ com seu MTL correspondente
-    const objFiles = arquivos.filter(a => /\.obj$/i.test(a.name));
-    const mtlFiles = arquivos.filter(a => /\.mtl$/i.test(a.name));
-    const gltfFiles = arquivos.filter(a => /\.(gltf|glb)$/i.test(a.name));
-
-    const items = [];
-    for (const obj of objFiles) {
-      const baseName = obj.name.replace(/\.obj$/i, "");
-      const mtl = mtlFiles.find(m => m.name.replace(/\.mtl$/i, "") === baseName);
-      items.push({ f: obj.id, m: mtl ? mtl.id : null, e: "obj", n: baseName });
-    }
-    for (const g of gltfFiles) {
-      const ext = g.name.split(".").pop().toLowerCase();
-      items.push({ f: g.id, m: null, e: ext, n: g.name.replace(/\.(gltf|glb)$/i, "") });
-    }
-
-    // Salva no mc-links.json com tipo "ambiente"
-    document.getElementById("share-status").textContent = "Gerando código...";
-    const gerarCodigo = () => {
-      const chars = "abcdefghijkmnpqrstuvwxyz23456789";
-      let code = "";
-      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
-      return code;
-    };
-
-    let linksFileId = null;
-    let linksData = {};
-    const search = await gapi.client.drive.files.list({
-      q: `name='mc-links.json' and '${pastaRaizId}' in parents and trashed=false`,
-      fields: "files(id)"
-    });
-    if (search.result.files.length > 0) {
-      linksFileId = search.result.files[0].id;
-      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${linksFileId}?alt=media`, {
-        headers: { "Authorization": `Bearer ${accessToken}` }
-      });
-      if (r.ok) linksData = await r.json();
-    }
-
-    let codigo;
-    do { codigo = gerarCodigo(); } while (linksData[codigo]);
-    linksData[codigo] = {
-      tipo: "ambiente",
-      n: `${obraAtiva.nome} — ${nome}`,
-      c: obraAtiva.cidade || "",
-      items: items
-    };
-
-    const blob = new Blob([JSON.stringify(linksData)], { type: "application/json" });
-    const form = new FormData();
-    const metadata = linksFileId ? {} : { name: "mc-links.json", parents: [pastaRaizId], mimeType: "application/json" };
-    form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-    form.append("file", blob);
-    const url = linksFileId
-      ? `https://www.googleapis.com/upload/drive/v3/files/${linksFileId}?uploadType=multipart`
-      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-    const method = linksFileId ? "PATCH" : "POST";
-    const saveRes = await fetch(url, { method, body: form, headers: { "Authorization": `Bearer ${accessToken}` } });
-    const saveData = await saveRes.json();
-    if (!linksFileId) {
-      linksFileId = saveData.id;
-      await gapi.client.drive.permissions.create({ fileId: linksFileId, resource: { role: "reader", type: "anyone" } });
-    }
-
-    const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
-    const finalLink = `${base}/viewer.html?c=${codigo}`;
-    document.getElementById("share-status").style.display = "none";
-    document.getElementById("share-link-text").textContent = finalLink;
-    window._shareLink = finalLink;
-    document.getElementById("share-link-wrap").style.display = "block";
-  } catch(e) {
-    console.error(e);
-    document.getElementById("share-status").style.display = "none";
-    document.getElementById("share-error").style.display = "block";
-  }
-};
 
 window.excluirArquivo = async (fileId, nome) => {
   if (!confirm(`Excluir "${nome}"?`)) return;
@@ -1049,101 +782,21 @@ window.compartilharArquivo = async (fileId, ext, nome) => {
       }
     } catch(_) {}
 
-    document.getElementById("share-status").textContent = "Gerando código curto...";
-
-    // Gera código curto único (5 caracteres alfanuméricos)
-    const gerarCodigo = () => {
-      const chars = "abcdefghijkmnpqrstuvwxyz23456789";
-      let code = "";
-      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
-      return code;
-    };
-
-    // Busca ou cria o arquivo de mapeamento
-    let linksFileId = null;
-    let linksData = {};
-    try {
-      const search = await gapi.client.drive.files.list({
-        q: `name='mc-links.json' and '${pastaRaizId}' in parents and trashed=false`,
-        fields: "files(id)"
-      });
-      if (search.result.files.length > 0) {
-        linksFileId = search.result.files[0].id;
-        // Lê o conteúdo
-        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${linksFileId}?alt=media`, {
-          headers: { "Authorization": `Bearer ${accessToken}` }
-        });
-        if (r.ok) linksData = await r.json();
-      }
-    } catch(e) { console.warn("Erro lendo mc-links.json:", e); }
-
-    // Verifica se este arquivo já tem código válido (reaproveita)
-    let codigo = null;
-    const UM_ANO_MS = 365 * 24 * 60 * 60 * 1000;
-    const agora = Date.now();
-    for (const [k, v] of Object.entries(linksData)) {
-      if (v.f === fileId) {
-        // Só reaproveita se não estiver expirado (menos de 1 ano)
-        const idade = agora - (v.t || 0);
-        if (idade < UM_ANO_MS) {
-          codigo = k;
-          break;
-        }
-      }
-    }
-
-    // Se não tem, cria um novo código único e limpa expirados
-    if (!codigo) {
-      // Remove links expirados (mais de 1 ano)
-      for (const k of Object.keys(linksData)) {
-        const idade = agora - (linksData[k].t || 0);
-        if (idade >= UM_ANO_MS) delete linksData[k];
-      }
-      do { codigo = gerarCodigo(); } while (linksData[codigo]);
-      linksData[codigo] = {
-        f: fileId,
-        m: mtlId || null,
-        e: ext,
-        n: obraAtiva.nome,
-        c: obraAtiva.cidade || "",
-        t: Date.now() // timestamp de criação (para expiração)
-      };
-
-      // Salva no Drive
-      const blob = new Blob([JSON.stringify(linksData)], { type: "application/json" });
-      const form = new FormData();
-      const metadata = linksFileId
-        ? {}
-        : { name: "mc-links.json", parents: [pastaRaizId], mimeType: "application/json" };
-      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-      form.append("file", blob);
-
-      const url = linksFileId
-        ? `https://www.googleapis.com/upload/drive/v3/files/${linksFileId}?uploadType=multipart`
-        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-      const method = linksFileId ? "PATCH" : "POST";
-
-      const saveRes = await fetch(url, {
-        method, body: form,
-        headers: { "Authorization": `Bearer ${accessToken}` }
-      });
-      const saveData = await saveRes.json();
-      if (!linksFileId) linksFileId = saveData.id;
-
-      // Torna o JSON público
-      await gapi.client.drive.permissions.create({
-        fileId: linksFileId,
-        resource: { role: "reader", type: "anyone" }
-      });
-    }
-
-    // Monta link curto
+    // Monta URL do viewer público
     const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
-    const finalLink = `${base}/viewer.html?c=${codigo}`;
+    const params = new URLSearchParams({
+      fileId,
+      ext,
+      nome: obraAtiva.nome,
+      cidade: obraAtiva.cidade || ""
+    });
+    if (mtlId) params.set("mtlId", mtlId);
+    const link = `${base}/viewer.html?${params.toString()}`;
 
+    // Mostra link
     document.getElementById("share-status").style.display = "none";
-    document.getElementById("share-link-text").textContent = finalLink;
-    window._shareLink = finalLink;
+    document.getElementById("share-link-text").textContent = link;
+    window._shareLink = link;
     document.getElementById("share-link-wrap").style.display = "block";
 
   } catch(e) {
