@@ -246,10 +246,15 @@ window.selecionarObra = async (driveId, cidade) => {
 
   document.getElementById("empty-state").style.display = "none";
   document.getElementById("obra-panel").classList.add("visible");
+
   setTab("viewer", document.querySelector(".tab"));
   carregarArquivos();
   document.querySelectorAll(".obra-item").forEach(el => el.classList.toggle("active", el.getAttribute("onclick")?.includes(driveId)));
 };
+
+
+
+
 
 window.abrirModalNovaObra = () => { document.getElementById("modal-obra").style.display = "flex"; document.getElementById("nova-nome").focus(); };
 window.fecharModalObra = (e) => { if (e && e.target !== document.getElementById("modal-obra")) return; document.getElementById("modal-obra").style.display = "none"; };
@@ -354,6 +359,7 @@ window.setTab = (tab, el) => {
 async function carregarArquivos() {
   if (!obraAtiva) return;
   const grid = document.getElementById("files-grid");
+  grid.className = "files-grid";
   grid.innerHTML = `<div class="loading-files">Carregando arquivos do Drive...</div>`;
   try {
     const res = await gapi.client.drive.files.list({
@@ -378,45 +384,6 @@ async function carregarArquivos() {
         </div>`;
     }).join("");
   } catch (e) { grid.innerHTML = `<div class="loading-files" style="color:#A83030">Erro ao carregar.</div>`; console.error(e); }
-}
-
-window.excluirArquivo = async (fileId, nome) => {
-  if (!confirm(`Excluir "${nome}"?`)) return;
-  await gapi.client.drive.files.delete({ fileId });
-  carregarArquivos();
-};
-
-// ============================================================
-// UPLOAD
-// ============================================================
-window.abrirUpload = () => { document.getElementById("modal-upload").style.display="flex"; document.getElementById("upload-progress").style.display="none"; document.getElementById("upload-error").style.display="none"; };
-window.fecharUpload = (e) => { if(e && e.target!==document.getElementById("modal-upload")) return; document.getElementById("modal-upload").style.display="none"; };
-window.handleDrop = (e) => { e.preventDefault(); document.getElementById("upload-zone").classList.remove("drag"); if(e.dataTransfer.files[0]) enviarArquivo(e.dataTransfer.files[0]); };
-window.handleFileSelect = (e) => { if(e.target.files[0]) enviarArquivo(e.target.files[0]); };
-
-async function enviarArquivo(file) {
-  if (!obraAtiva) return;
-  const ext = file.name.split(".").pop().toLowerCase();
-  if (!["obj","gltf","glb","mtl"].includes(ext)) { document.getElementById("upload-error").textContent="Formato não suportado. Use .obj, .gltf, .glb ou .mtl"; document.getElementById("upload-error").style.display="block"; return; }
-  const fill = document.getElementById("progress-fill");
-  const label = document.getElementById("progress-label");
-  document.getElementById("upload-progress").style.display="block";
-  fill.style.width="10%"; label.textContent="Enviando para o Drive...";
-  try {
-    const metadata = { name: file.name, parents: [obraAtiva.driveId] };
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify(metadata)], { type:"application/json" }));
-    form.append("file", file);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name");
-    xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
-    xhr.upload.onprogress = (e) => { if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);fill.style.width=p+"%";label.textContent=`Enviando... ${p}%`;} };
-    xhr.onload = () => {
-      if(xhr.status===200){fill.style.width="100%";label.textContent="Salvo no Drive!";setTimeout(()=>{document.getElementById("modal-upload").style.display="none";document.getElementById("file-input").value="";carregarArquivos();if(tabAtiva!=="arquivos")setTab("arquivos",document.querySelectorAll(".tab")[1]);},800);}
-      else{document.getElementById("upload-error").textContent="Erro no upload.";document.getElementById("upload-error").style.display="block";}
-    };
-    xhr.send(form);
-  } catch(e){document.getElementById("upload-error").textContent="Erro no upload.";document.getElementById("upload-error").style.display="block";console.error(e);}
 }
 
 // ============================================================
@@ -462,33 +429,33 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   const w=wrap.clientWidth||800, h=wrap.clientHeight||500;
 
   threeScene=new THREE.Scene();
-  threeScene.background=new THREE.Color(0x1A0E0E);
+  threeScene.background=new THREE.Color(0xE5E5E0);
   threeCamera=new THREE.PerspectiveCamera(45,w/h,0.01,2000);
   threeRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
   threeRenderer.setSize(w,h);
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
 
-  // Luz ambiente moderada — base com contraste suave
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.45));
-  // Hemisférica: topo claro, baixo médio para diferenciar faces horizontais/verticais
-  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.45));
-  // Luz principal forte (dá sombreamento nas arestas)
-  const main = new THREE.DirectionalLight(0xffffff, 0.7);
-  main.position.set(10, 20, 8);
+  // Iluminação estilo SketchUp — base bem clara e uniforme
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  // Hemisférica clara (céu branco, chão cinza claro)
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.45));
+  // Luz principal suave para dar leve sombreamento nas arestas
+  const main = new THREE.DirectionalLight(0xffffff, 0.45);
+  main.position.set(10, 25, 10);
   threeScene.add(main);
-  // Luz secundária mais fraca do outro lado (evita lado totalmente escuro)
-  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
-  fill.position.set(-12, 8, -10);
+  // Fill light do lado oposto (evita lado escuro)
+  const fill = new THREE.DirectionalLight(0xffffff, 0.25);
+  fill.position.set(-10, 15, -10);
   threeScene.add(fill);
-  // Luz frontal suave para detalhes
-  const front = new THREE.DirectionalLight(0xffffff, 0.2);
-  front.position.set(0, 5, 15);
+  // Luz frontal sutil
+  const front = new THREE.DirectionalLight(0xffffff, 0.15);
+  front.position.set(0, 8, 20);
   threeScene.add(front);
   threeRenderer.sortObjects = true;
 
 
-  threeScene.add(new THREE.GridHelper(50,50,0x2A1008,0x1A0805));
+  threeScene.add(new THREE.GridHelper(50,50,0xAAAAAA,0xCCCCCC));
 
   carregarModelo(url, ext, mtlUrl);
 
@@ -587,7 +554,28 @@ function carregarModelo(url, ext, mtlUrl) {
       l.load(url,gltf=>{
         centralizarModelo(gltf.scene);
         threeScene.add(gltf.scene);
-        gltf.scene.traverse(c=>{if(c.isMesh){meshes.push(c);c.material.side=THREE.DoubleSide;}});
+        // Converte materiais PBR para Lambert (visual igual SketchUp, sem reflexos)
+        gltf.scene.traverse(c=>{
+          if(c.isMesh){
+            meshes.push(c);
+            const mats = Array.isArray(c.material) ? c.material : [c.material];
+            const novosMats = mats.map(m => {
+              if(!m) return m;
+              // Cria material Lambert preservando cor e textura
+              const novoMat = new THREE.MeshLambertMaterial({
+                color: m.color || new THREE.Color(0xCCCCCC),
+                map: m.map || null,
+                transparent: m.transparent || m.opacity < 0.99,
+                opacity: m.opacity !== undefined ? m.opacity : 1,
+                side: THREE.DoubleSide,
+                alphaMap: m.alphaMap || null,
+                alphaTest: m.alphaTest || 0
+              });
+              return novoMat;
+            });
+            c.material = Array.isArray(c.material) ? novosMats : novosMats[0];
+          }
+        });
       },undefined,e=>console.error(e));
     };
     document.head.appendChild(s);
@@ -782,21 +770,101 @@ window.compartilharArquivo = async (fileId, ext, nome) => {
       }
     } catch(_) {}
 
-    // Monta URL do viewer público
-    const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
-    const params = new URLSearchParams({
-      fileId,
-      ext,
-      nome: obraAtiva.nome,
-      cidade: obraAtiva.cidade || ""
-    });
-    if (mtlId) params.set("mtlId", mtlId);
-    const link = `${base}/viewer.html?${params.toString()}`;
+    document.getElementById("share-status").textContent = "Gerando código curto...";
 
-    // Mostra link
+    // Gera código curto único (5 caracteres alfanuméricos)
+    const gerarCodigo = () => {
+      const chars = "abcdefghijkmnpqrstuvwxyz23456789";
+      let code = "";
+      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    };
+
+    // Busca ou cria o arquivo de mapeamento
+    let linksFileId = null;
+    let linksData = {};
+    try {
+      const search = await gapi.client.drive.files.list({
+        q: `name='mc-links.json' and '${pastaRaizId}' in parents and trashed=false`,
+        fields: "files(id)"
+      });
+      if (search.result.files.length > 0) {
+        linksFileId = search.result.files[0].id;
+        // Lê o conteúdo
+        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${linksFileId}?alt=media`, {
+          headers: { "Authorization": `Bearer ${accessToken}` }
+        });
+        if (r.ok) linksData = await r.json();
+      }
+    } catch(e) { console.warn("Erro lendo mc-links.json:", e); }
+
+    // Verifica se este arquivo já tem código válido (reaproveita)
+    let codigo = null;
+    const UM_ANO_MS = 365 * 24 * 60 * 60 * 1000;
+    const agora = Date.now();
+    for (const [k, v] of Object.entries(linksData)) {
+      if (v.f === fileId) {
+        // Só reaproveita se não estiver expirado (menos de 1 ano)
+        const idade = agora - (v.t || 0);
+        if (idade < UM_ANO_MS) {
+          codigo = k;
+          break;
+        }
+      }
+    }
+
+    // Se não tem, cria um novo código único e limpa expirados
+    if (!codigo) {
+      // Remove links expirados (mais de 1 ano)
+      for (const k of Object.keys(linksData)) {
+        const idade = agora - (linksData[k].t || 0);
+        if (idade >= UM_ANO_MS) delete linksData[k];
+      }
+      do { codigo = gerarCodigo(); } while (linksData[codigo]);
+      linksData[codigo] = {
+        f: fileId,
+        m: mtlId || null,
+        e: ext,
+        n: obraAtiva.nome,
+        c: obraAtiva.cidade || "",
+        t: Date.now() // timestamp de criação (para expiração)
+      };
+
+      // Salva no Drive
+      const blob = new Blob([JSON.stringify(linksData)], { type: "application/json" });
+      const form = new FormData();
+      const metadata = linksFileId
+        ? {}
+        : { name: "mc-links.json", parents: [pastaRaizId], mimeType: "application/json" };
+      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      form.append("file", blob);
+
+      const url = linksFileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${linksFileId}?uploadType=multipart`
+        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+      const method = linksFileId ? "PATCH" : "POST";
+
+      const saveRes = await fetch(url, {
+        method, body: form,
+        headers: { "Authorization": `Bearer ${accessToken}` }
+      });
+      const saveData = await saveRes.json();
+      if (!linksFileId) linksFileId = saveData.id;
+
+      // Torna o JSON público
+      await gapi.client.drive.permissions.create({
+        fileId: linksFileId,
+        resource: { role: "reader", type: "anyone" }
+      });
+    }
+
+    // Monta link curto
+    const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
+    const finalLink = `${base}/viewer.html?c=${codigo}`;
+
     document.getElementById("share-status").style.display = "none";
-    document.getElementById("share-link-text").textContent = link;
-    window._shareLink = link;
+    document.getElementById("share-link-text").textContent = finalLink;
+    window._shareLink = finalLink;
     document.getElementById("share-link-wrap").style.display = "block";
 
   } catch(e) {
