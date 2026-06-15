@@ -436,22 +436,22 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
 
-  // Iluminação estilo SketchUp — base bem clara e uniforme
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.85));
-  // Hemisférica clara (céu branco, chão cinza claro)
-  threeScene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.45));
-  // Luz principal suave para dar leve sombreamento nas arestas
-  const main = new THREE.DirectionalLight(0xffffff, 0.45);
-  main.position.set(10, 25, 10);
+  // Iluminação com sombreamento — arestas marcadas e cores corretas
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  // Hemisférica suave para diferenciar topo do chão
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x999999, 0.4));
+  // Luz principal forte vindo do topo-lateral (marca arestas e dá volume)
+  const main = new THREE.DirectionalLight(0xffffff, 0.85);
+  main.position.set(8, 20, 6);
   threeScene.add(main);
-  // Fill light do lado oposto (evita lado escuro)
-  const fill = new THREE.DirectionalLight(0xffffff, 0.25);
-  fill.position.set(-10, 15, -10);
+  // Fill light mais fraca do lado oposto (lados ficam visíveis sem ficar chapado)
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-10, 8, -8);
   threeScene.add(fill);
-  // Luz frontal sutil
-  const front = new THREE.DirectionalLight(0xffffff, 0.15);
-  front.position.set(0, 8, 20);
-  threeScene.add(front);
+  // Luz por baixo bem suave (evita sombras totalmente pretas)
+  const bottom = new THREE.DirectionalLight(0xffffff, 0.1);
+  bottom.position.set(0, -5, 5);
+  threeScene.add(bottom);
   threeRenderer.sortObjects = true;
 
 

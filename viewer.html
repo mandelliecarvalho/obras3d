@@ -296,15 +296,15 @@ function init() {
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Iluminação estilo SketchUp — base bem clara e uniforme
-  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.45));
-  const main = new THREE.DirectionalLight(0xffffff, 0.45);
-  main.position.set(10, 25, 10); scene.add(main);
-  const fill = new THREE.DirectionalLight(0xffffff, 0.25);
-  fill.position.set(-10, 15, -10); scene.add(fill);
-  const front = new THREE.DirectionalLight(0xffffff, 0.15);
-  front.position.set(0, 8, 20); scene.add(front);
+  // Iluminação com sombreamento — arestas marcadas e cores corretas
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x999999, 0.4));
+  const main = new THREE.DirectionalLight(0xffffff, 0.85);
+  main.position.set(8, 20, 6); scene.add(main);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-10, 8, -8); scene.add(fill);
+  const bottom = new THREE.DirectionalLight(0xffffff, 0.1);
+  bottom.position.set(0, -5, 5); scene.add(bottom);
   scene.add(new THREE.GridHelper(50, 50, 0xAAAAAA, 0xCCCCCC));
 
   carregarModelo(fileId, ext, mtlId);
