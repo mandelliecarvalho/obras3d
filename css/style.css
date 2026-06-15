@@ -884,6 +884,7 @@ body.ios-fullscreen-active {
   .tab { padding: 6px 8px !important; font-size: 9px !important; }
 }
 
+
 /* ===== MENU MOBILE — OBRAS/CIDADES ===== */
 .mobile-menu-overlay {
   display: none;
@@ -1004,4 +1005,3 @@ body.ios-fullscreen-active {
     height: auto !important;
   }
 }
-
