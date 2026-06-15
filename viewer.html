@@ -289,23 +289,56 @@ function init() {
 
   target = new THREE.Vector3(0, 0, 0);
   scene  = new THREE.Scene();
-  scene.background = new THREE.Color(0xE5E5E0);
+  scene.background = new THREE.Color(0x888888);
 
   camera = new THREE.PerspectiveCamera(45, w/h, 0.01, 2000);
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Iluminação com sombreamento — arestas marcadas e cores corretas
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x999999, 0.4));
-  const main = new THREE.DirectionalLight(0xffffff, 0.85);
-  main.position.set(8, 20, 6); scene.add(main);
-  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
-  fill.position.set(-10, 8, -8); scene.add(fill);
-  const bottom = new THREE.DirectionalLight(0xffffff, 0.1);
-  bottom.position.set(0, -5, 5); scene.add(bottom);
-  scene.add(new THREE.GridHelper(50, 50, 0xAAAAAA, 0xCCCCCC));
+  // Renderização PBR profissional
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.physicallyCorrectLights = true;
+
+  // Environment map procedural (HDR-like)
+  const pmremGen = new THREE.PMREMGenerator(renderer);
+  pmremGen.compileEquirectangularShader();
+  const envScene = new THREE.Scene();
+  const ceil = new THREE.Mesh(
+    new THREE.BoxGeometry(100, 0.1, 100),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  ceil.position.y = 8;
+  envScene.add(ceil);
+  const wallMat = new THREE.MeshBasicMaterial({ color: 0xdddddd });
+  [[50,0,0],[-50,0,0],[0,0,50],[0,0,-50]].forEach(([x,y,z]) => {
+    const w = new THREE.Mesh(
+      x === 0 ? new THREE.BoxGeometry(100, 30, 0.1) : new THREE.BoxGeometry(0.1, 30, 100),
+      wallMat
+    );
+    w.position.set(x, y, z);
+    envScene.add(w);
+  });
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(100, 0.1, 100),
+    new THREE.MeshBasicMaterial({ color: 0x888888 })
+  );
+  floor.position.y = -10;
+  envScene.add(floor);
+  scene.environment = pmremGen.fromScene(envScene, 0.04).texture;
+  pmremGen.dispose();
+
+  // Luzes complementares
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  const key = new THREE.DirectionalLight(0xffffff, 1.5);
+  key.position.set(10, 20, 8); scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+  fill.position.set(-12, 10, -10); scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.3);
+  rim.position.set(0, 5, -15); scene.add(rim);
+  scene.add(new THREE.GridHelper(50, 50, 0x666666, 0x777777));
 
   carregarModelo(fileId, ext, mtlId);
 
@@ -422,19 +455,15 @@ async function carregarModelo(fId, ext, mtlFId) {
           if (c.isMesh) {
             meshes.push(c);
             const mats = Array.isArray(c.material) ? c.material : [c.material];
-            const novosMats = mats.map(m => {
-              if (!m) return m;
-              return new THREE.MeshLambertMaterial({
-                color: m.color || new THREE.Color(0xCCCCCC),
-                map: m.map || null,
-                transparent: m.transparent || m.opacity < 0.99,
-                opacity: m.opacity !== undefined ? m.opacity : 1,
-                side: THREE.DoubleSide,
-                alphaMap: m.alphaMap || null,
-                alphaTest: m.alphaTest || 0
-              });
+            mats.forEach(m => {
+              if (!m) return;
+              m.side = THREE.DoubleSide;
+              if (m.map) m.map.encoding = THREE.sRGBEncoding;
+              if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
+              if (m.metalness !== undefined && m.metalness > 0.8) m.metalness = 0.4;
+              if (m.roughness !== undefined && m.roughness < 0.3) m.roughness = 0.5;
+              m.needsUpdate = true;
             });
-            c.material = Array.isArray(c.material) ? novosMats : novosMats[0];
           }
         });
       });

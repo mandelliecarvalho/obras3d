@@ -429,33 +429,68 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   const w=wrap.clientWidth||800, h=wrap.clientHeight||500;
 
   threeScene=new THREE.Scene();
-  threeScene.background=new THREE.Color(0xE5E5E0);
+  threeScene.background=new THREE.Color(0x888888);
   threeCamera=new THREE.PerspectiveCamera(45,w/h,0.01,2000);
   threeRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
   threeRenderer.setSize(w,h);
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
 
-  // Iluminação com sombreamento — arestas marcadas e cores corretas
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  // Hemisférica suave para diferenciar topo do chão
-  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x999999, 0.4));
-  // Luz principal forte vindo do topo-lateral (marca arestas e dá volume)
-  const main = new THREE.DirectionalLight(0xffffff, 0.85);
-  main.position.set(8, 20, 6);
-  threeScene.add(main);
-  // Fill light mais fraca do lado oposto (lados ficam visíveis sem ficar chapado)
-  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
-  fill.position.set(-10, 8, -8);
-  threeScene.add(fill);
-  // Luz por baixo bem suave (evita sombras totalmente pretas)
-  const bottom = new THREE.DirectionalLight(0xffffff, 0.1);
-  bottom.position.set(0, -5, 5);
-  threeScene.add(bottom);
+  // Renderização PBR profissional — tone mapping + cores corretas
+  threeRenderer.outputEncoding = THREE.sRGBEncoding;
+  threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  threeRenderer.toneMappingExposure = 1.05;
+  threeRenderer.physicallyCorrectLights = true;
   threeRenderer.sortObjects = true;
 
+  // Environment map procedural (RoomEnvironment) — HDR-like sem precisar de arquivo
+  const pmremGen = new THREE.PMREMGenerator(threeRenderer);
+  pmremGen.compileEquirectangularShader();
 
-  threeScene.add(new THREE.GridHelper(50,50,0xAAAAAA,0xCCCCCC));
+  // Cria environment claro e neutro (estilo studio)
+  const envScene = new THREE.Scene();
+  // Plano superior claro (luz do céu)
+  const ceil = new THREE.Mesh(
+    new THREE.BoxGeometry(100, 0.1, 100),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  ceil.position.y = 8;
+  envScene.add(ceil);
+  // Planos laterais
+  const wallMat = new THREE.MeshBasicMaterial({ color: 0xdddddd });
+  [
+    [50, 0, 0], [-50, 0, 0], [0, 0, 50], [0, 0, -50]
+  ].forEach(([x,y,z]) => {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.1, 30, 100), wallMat);
+    if (x === 0) { w.geometry = new THREE.BoxGeometry(100, 30, 0.1); }
+    w.position.set(x, y, z);
+    envScene.add(w);
+  });
+  // Plano inferior cinza
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(100, 0.1, 100),
+    new THREE.MeshBasicMaterial({ color: 0x888888 })
+  );
+  floor.position.y = -10;
+  envScene.add(floor);
+
+  threeScene.environment = pmremGen.fromScene(envScene, 0.04).texture;
+  pmremGen.dispose();
+
+  // Luzes complementares para realçar arestas
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  const key = new THREE.DirectionalLight(0xffffff, 1.5);
+  key.position.set(10, 20, 8);
+  threeScene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+  fill.position.set(-12, 10, -10);
+  threeScene.add(fill);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.3);
+  rim.position.set(0, 5, -15);
+  threeScene.add(rim);
+
+
+  threeScene.add(new THREE.GridHelper(50,50,0x666666,0x777777));
 
   carregarModelo(url, ext, mtlUrl);
 
@@ -554,26 +589,22 @@ function carregarModelo(url, ext, mtlUrl) {
       l.load(url,gltf=>{
         centralizarModelo(gltf.scene);
         threeScene.add(gltf.scene);
-        // Converte materiais PBR para Lambert (visual igual SketchUp, sem reflexos)
+        // Preserva materiais PBR originais do GLB — apenas ajustes finos
         gltf.scene.traverse(c=>{
           if(c.isMesh){
             meshes.push(c);
             const mats = Array.isArray(c.material) ? c.material : [c.material];
-            const novosMats = mats.map(m => {
-              if(!m) return m;
-              // Cria material Lambert preservando cor e textura
-              const novoMat = new THREE.MeshLambertMaterial({
-                color: m.color || new THREE.Color(0xCCCCCC),
-                map: m.map || null,
-                transparent: m.transparent || m.opacity < 0.99,
-                opacity: m.opacity !== undefined ? m.opacity : 1,
-                side: THREE.DoubleSide,
-                alphaMap: m.alphaMap || null,
-                alphaTest: m.alphaTest || 0
-              });
-              return novoMat;
+            mats.forEach(m => {
+              if(!m) return;
+              m.side = THREE.DoubleSide;
+              // Garante que texturas usem encoding correto
+              if (m.map) m.map.encoding = THREE.sRGBEncoding;
+              if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
+              // Brilho menos exagerado em materiais muito reflexivos
+              if (m.metalness !== undefined && m.metalness > 0.8) m.metalness = 0.4;
+              if (m.roughness !== undefined && m.roughness < 0.3) m.roughness = 0.5;
+              m.needsUpdate = true;
             });
-            c.material = Array.isArray(c.material) ? novosMats : novosMats[0];
           }
         });
       },undefined,e=>console.error(e));
