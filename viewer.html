@@ -217,6 +217,12 @@
 
 const API_KEY = "AIzaSyBAz0gcHP_DmBiqX_x63OlmvFar4GXKzlE";
 
+// Detecta mobile/tablet (mobile = otimizado, desktop = máxima qualidade)
+const isMobile = /Android|iPhone|iPad|iPod|Mobile|Opera Mini/i.test(navigator.userAgent)
+              || window.innerWidth < 900
+              || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
+console.log("Modo:", isMobile ? "MOBILE (otimizado)" : "DESKTOP (TOP)");
+
 const params = new URLSearchParams(window.location.search);
 const codigo = params.get("c");
 
@@ -306,6 +312,8 @@ function init() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Desktop: PixelRatio 2 (máxima qualidade) | Mobile: 1.5 (otimizado)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
@@ -314,10 +322,10 @@ function init() {
   // ============================================================
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.65;
+  renderer.toneMappingExposure = isMobile ? 0.75 : 0.65;
   renderer.physicallyCorrectLights = false;
 
-  // Environment escuro/neutro — só dá vida sutil a materiais reflexivos
+  // Environment otimizado (igual mobile/desktop)
   const pmremGen = new THREE.PMREMGenerator(renderer);
   pmremGen.compileEquirectangularShader();
   const envScene = new THREE.Scene();
@@ -335,12 +343,13 @@ function init() {
   pmremGen.dispose();
 
   // Luzes diretas — esquema cinematográfico
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.25));
+  scene.add(new THREE.AmbientLight(0xffffff, isMobile ? 0.4 : 0.25));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, isMobile ? 0.35 : 0.25));
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
   keyLight.position.set(10, 18, 8);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(2048, 2048);
+  // Desktop: shadow 2K (máxima nitidez) | Mobile: 1K (otimizado)
+  keyLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
   keyLight.shadow.camera.left = -20;
   keyLight.shadow.camera.right = 20;
   keyLight.shadow.camera.top = 20;
@@ -366,6 +375,16 @@ function init() {
   const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
   rimLight.position.set(0, 4, -15); scene.add(rimLight);
   scene.add(new THREE.GridHelper(50, 50, 0x4A4A4A, 0x555555));
+
+  // Recovery de WebGL context loss (recupera de crashes de GPU)
+  canvas.addEventListener("webglcontextlost", (e) => {
+    e.preventDefault();
+    console.warn("WebGL context perdido — tentando recuperar...");
+  });
+  canvas.addEventListener("webglcontextrestored", () => {
+    console.log("WebGL context recuperado");
+    setTimeout(() => window.location.reload(), 100);
+  });
 
   carregarModelo(fileId, ext, mtlId);
 
@@ -518,6 +537,26 @@ async function carregarModelo(fId, ext, mtlFId) {
             mats.forEach(m => {
               if (!m) return;
               m.side = THREE.DoubleSide;
+              // Mobile: redimensiona texturas para 1024px (economiza memória)
+              // Desktop: mantém resolução máxima
+              if (isMobile) {
+                ["map","emissiveMap","normalMap","roughnessMap","metalnessMap","aoMap"].forEach(prop => {
+                  if (m[prop] && m[prop].image) {
+                    const img = m[prop].image;
+                    const MAX = 1024;
+                    if (img.width > MAX || img.height > MAX) {
+                      const canvas = document.createElement("canvas");
+                      const ratio = Math.min(MAX / img.width, MAX / img.height);
+                      canvas.width = Math.floor(img.width * ratio);
+                      canvas.height = Math.floor(img.height * ratio);
+                      const ctx = canvas.getContext("2d");
+                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                      m[prop].image = canvas;
+                      m[prop].needsUpdate = true;
+                    }
+                  }
+                });
+              }
               if (m.map) { m.map.encoding = THREE.sRGBEncoding; m.map.needsUpdate = true; }
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
               if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.3;
@@ -528,16 +567,34 @@ async function carregarModelo(fId, ext, mtlFId) {
 
             if (c.geometry && c.geometry.boundingSphere === null) c.frustumCulled = false;
 
-            // Contorno sutil nas arestas (estilo arquitetônico)
+            // Desktop: contorno em todas as meshes (visual máximo)
+            // Mobile: só em meshes médias para economizar memória
             try {
-              const edges = new THREE.EdgesGeometry(c.geometry, 25);
-              const line = new THREE.LineSegments(
-                edges,
-                new THREE.LineBasicMaterial({
-                  color: 0x1a1a1a, transparent: true, opacity: 0.55, depthTest: true
-                })
-              );
-              c.add(line);
+              if (isMobile) {
+                const triCount = c.geometry.index
+                  ? c.geometry.index.count / 3
+                  : (c.geometry.attributes.position ? c.geometry.attributes.position.count / 3 : 0);
+                if (triCount > 20 && triCount < 30000) {
+                  const edges = new THREE.EdgesGeometry(c.geometry, 30);
+                  const line = new THREE.LineSegments(
+                    edges,
+                    new THREE.LineBasicMaterial({
+                      color: 0x1a1a1a, transparent: true, opacity: 0.5, depthTest: true
+                    })
+                  );
+                  c.add(line);
+                }
+              } else {
+                // Desktop: aplica em todas as arestas com ângulo > 25° (mais detalhe)
+                const edges = new THREE.EdgesGeometry(c.geometry, 25);
+                const line = new THREE.LineSegments(
+                  edges,
+                  new THREE.LineBasicMaterial({
+                    color: 0x1a1a1a, transparent: true, opacity: 0.55, depthTest: true
+                  })
+                );
+                c.add(line);
+              }
             } catch(_) {}
           }
         });
