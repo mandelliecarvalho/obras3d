@@ -845,10 +845,27 @@ window.compartilharArquivo = async (fileId, ext, nome) => {
 
   try {
     // Torna o arquivo público (anyone with link can view)
-    await gapi.client.drive.permissions.create({
-      fileId: fileId,
-      resource: { role: "reader", type: "anyone" }
-    });
+    document.getElementById("share-status").textContent = "Tornando arquivo público...";
+    try {
+      await gapi.client.drive.permissions.create({
+        fileId: fileId,
+        resource: { role: "reader", type: "anyone" }
+      });
+    } catch(permErr) {
+      // Se já estiver público, ignora o erro
+      if (!permErr.result?.error?.message?.includes("alread")) {
+        console.warn("Erro tornando público:", permErr);
+      }
+    }
+
+    // VERIFICA se o arquivo é realmente público (testa fetch sem autenticação)
+    document.getElementById("share-status").textContent = "Verificando acesso público...";
+    const API_KEY_TEST = "AIzaSyBAz0gcHP_DmBiqX_x63OlmvFar4GXKzlE";
+    const testUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?key=${API_KEY_TEST}`;
+    const testRes = await fetch(testUrl);
+    if (!testRes.ok) {
+      throw new Error(`Arquivo não está público (HTTP ${testRes.status}). Tente novamente.`);
+    }
 
     // Procura MTL correspondente e também torna público
     let mtlId = null;

@@ -398,20 +398,49 @@ function init() {
 
 // Busca arquivo do Drive via API Key (sem CORS)
 async function fetchArquivo(fId) {
-  try {
-    const url = `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&key=${API_KEY}`;
-    const r = await fetch(url);
-    if (r.ok) return await r.text();
-  } catch(e) { console.error("fetchArquivo error:", e); }
+  const urls = [
+    `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&key=${API_KEY}`,
+    `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&supportsAllDrives=true&key=${API_KEY}`
+  ];
+  for (const url of urls) {
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        if (r.ok) {
+          const txt = await r.text();
+          if (txt.length > 100) return txt;
+        }
+      } catch(e) {
+        console.warn(`Erro fetch ${fId}:`, e.message);
+        await new Promise(r => setTimeout(r, 500 * (tentativa+1)));
+      }
+    }
+  }
   return null;
 }
 
 async function fetchArquivoBinario(fId) {
-  try {
-    const url = `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&key=${API_KEY}`;
-    const r = await fetch(url);
-    if (r.ok) return await r.arrayBuffer();
-  } catch(e) { console.error(e); }
+  // Tenta múltiplas URLs com retry (resolve problemas em WhatsApp/iOS/redes móveis)
+  const urls = [
+    `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&key=${API_KEY}`,
+    `https://www.googleapis.com/drive/v3/files/${fId}?alt=media&supportsAllDrives=true&key=${API_KEY}`
+  ];
+  for (const url of urls) {
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        if (r.ok) {
+          const buf = await r.arrayBuffer();
+          if (buf.byteLength > 100) return buf;
+        } else {
+          console.warn(`HTTP ${r.status} para ${fId} (tentativa ${tentativa+1})`);
+        }
+      } catch(e) {
+        console.warn(`Erro fetch ${fId}:`, e.message);
+        await new Promise(r => setTimeout(r, 500 * (tentativa+1)));
+      }
+    }
+  }
   return null;
 }
 
@@ -528,9 +557,20 @@ async function carregarModelo(fId, ext, mtlFId) {
   }
 }
 
-function showError() {
+function showError(detail) {
   document.getElementById("loading").style.display = "none";
-  document.getElementById("error-state").style.display = "flex";
+  const err = document.getElementById("error-state");
+  err.style.display = "flex";
+  // Adiciona botão "Tentar novamente"
+  if (!err.querySelector(".btn-retry")) {
+    const btn = document.createElement("button");
+    btn.className = "btn-retry";
+    btn.textContent = "🔄 Tentar novamente";
+    btn.style.cssText = "margin-top:14px;padding:9px 18px;background:rgba(138,42,32,0.8);color:#fff;border:none;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;font-family:'DM Sans',sans-serif;";
+    btn.onclick = () => window.location.reload();
+    err.appendChild(btn);
+  }
+  if (detail) console.error("Erro detalhado:", detail);
 }
 
 function showExpired() {
