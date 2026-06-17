@@ -314,7 +314,7 @@ function init() {
   // ============================================================
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.72;
+  renderer.toneMappingExposure = 0.65;
   renderer.physicallyCorrectLights = false;
 
   // Environment escuro/neutro — só dá vida sutil a materiais reflexivos
@@ -335,9 +335,9 @@ function init() {
   pmremGen.dispose();
 
   // Luzes diretas — esquema cinematográfico
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.25));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
   keyLight.position.set(10, 18, 8);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -361,9 +361,9 @@ function init() {
   shadowPlane.position.y = -0.01;
   shadowPlane.receiveShadow = true;
   scene.add(shadowPlane);
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.55);
   fillLight.position.set(-12, 6, -8); scene.add(fillLight);
-  const rimLight = new THREE.DirectionalLight(0xffffff, 0.35);
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
   rimLight.position.set(0, 4, -15); scene.add(rimLight);
   scene.add(new THREE.GridHelper(50, 50, 0x4A4A4A, 0x555555));
 
@@ -497,6 +497,8 @@ async function carregarModelo(fId, ext, mtlFId) {
               m.needsUpdate = true;
             });
 
+            if (c.geometry && c.geometry.boundingSphere === null) c.frustumCulled = false;
+
             // Contorno sutil nas arestas (estilo arquitetônico)
             try {
               const edges = new THREE.EdgesGeometry(c.geometry, 25);
@@ -510,6 +512,17 @@ async function carregarModelo(fId, ext, mtlFId) {
             } catch(_) {}
           }
         });
+
+        // FIX BUG BRANCO: força re-render após delay (texturas terminarem de carregar)
+        setTimeout(() => {
+          gltf.scene.traverse(c => {
+            if (c.isMesh) {
+              const mats = Array.isArray(c.material) ? c.material : [c.material];
+              mats.forEach(m => { if (m) m.needsUpdate = true; });
+            }
+          });
+          if (renderer && scene && camera) renderer.render(scene, camera);
+        }, 200);
       });
     } catch(_) { showError(); }
   }

@@ -453,7 +453,7 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   // ============================================================
   threeRenderer.outputEncoding = THREE.sRGBEncoding;
   threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-  threeRenderer.toneMappingExposure = 0.72;        // Levemente sub-exposto = cores mais ricas
+  threeRenderer.toneMappingExposure = 0.65;        // Levemente sub-exposto = cores mais ricas
   threeRenderer.physicallyCorrectLights = false;   // Modo clássico = controle direto da intensidade
   threeRenderer.sortObjects = true;
 
@@ -479,11 +479,11 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
 
   // LUZES DIRETAS — fazem o trabalho real de iluminar (esquema cinematográfico)
   // Ambient baixo (preserva contraste das sombras)
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.25));
   // Hemisférica sutil (diferencia faces para cima/baixo)
-  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.25));
   // Key light com sombras reais projetadas
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
   keyLight.position.set(10, 18, 8);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -508,11 +508,11 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   shadowPlane.receiveShadow = true;
   threeScene.add(shadowPlane);
   // Fill light (preenche o lado oposto sem chapar)
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.55);
   fillLight.position.set(-12, 6, -8);
   threeScene.add(fillLight);
-  // Rim light (separa modelo do fundo, destaca contornos)
-  const rimLight = new THREE.DirectionalLight(0xffffff, 0.35);
+  // Rim light forte (separa modelo do fundo, destaca contornos)
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
   rimLight.position.set(0, 4, -15);
   threeScene.add(rimLight);
 
@@ -616,19 +616,26 @@ function carregarModelo(url, ext, mtlUrl) {
       l.load(url,gltf=>{
         centralizarModelo(gltf.scene);
         threeScene.add(gltf.scene);
-        // Materiais PBR + sombras + contornos nas arestas (estilo arquitetônico pro)
+        // Materiais PBR + sombras + contornos (estilo arquitetônico profissional)
+        const todasTexturas = [];
         gltf.scene.traverse(c=>{
           if(c.isMesh){
             meshes.push(c);
-            // Sombras: cada mesh PROJETA e RECEBE
             c.castShadow = true;
             c.receiveShadow = true;
+            // Frustum culling desativado em meshes muito pequenas (evita sumir)
+            if (c.geometry && c.geometry.boundingSphere === null) c.frustumCulled = false;
 
             const mats = Array.isArray(c.material) ? c.material : [c.material];
             mats.forEach(m => {
               if (!m) return;
               m.side = THREE.DoubleSide;
-              if (m.map) { m.map.encoding = THREE.sRGBEncoding; m.map.needsUpdate = true; }
+              // Aplica encoding sRGB nas texturas de cor (e coleta para esperar)
+              if (m.map) {
+                m.map.encoding = THREE.sRGBEncoding;
+                m.map.needsUpdate = true;
+                todasTexturas.push(m.map);
+              }
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
               if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.3;
               if (m.metalness !== undefined && m.metalness > 0.5) m.metalness = 0.3;
@@ -636,9 +643,9 @@ function carregarModelo(url, ext, mtlUrl) {
               m.needsUpdate = true;
             });
 
-            // Contorno nas arestas (linha fina cinza escuro) — só onde há quebra de ângulo
+            // Contorno sutil nas arestas (linha fina) — só onde quebra ângulo > 25°
             try {
-              const edges = new THREE.EdgesGeometry(c.geometry, 25); // 25° threshold
+              const edges = new THREE.EdgesGeometry(c.geometry, 25);
               const line = new THREE.LineSegments(
                 edges,
                 new THREE.LineBasicMaterial({
@@ -653,6 +660,19 @@ function carregarModelo(url, ext, mtlUrl) {
             } catch(_) {}
           }
         });
+
+        // FIX BUG BRANCO: força re-render após pequeno delay para texturas aparecerem
+        setTimeout(() => {
+          gltf.scene.traverse(c => {
+            if (c.isMesh) {
+              const mats = Array.isArray(c.material) ? c.material : [c.material];
+              mats.forEach(m => { if (m) m.needsUpdate = true; });
+            }
+          });
+          if (threeRenderer && threeScene && threeCamera) {
+            threeRenderer.render(threeScene, threeCamera);
+          }
+        }, 200);
       },undefined,e=>console.error(e));
     };
     document.head.appendChild(s);
@@ -847,97 +867,16 @@ window.compartilharArquivo = async (fileId, ext, nome) => {
       }
     } catch(_) {}
 
-    document.getElementById("share-status").textContent = "Gerando código curto...";
-
-    // Gera código curto único (5 caracteres alfanuméricos)
-    const gerarCodigo = () => {
-      const chars = "abcdefghijkmnpqrstuvwxyz23456789";
-      let code = "";
-      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
-      return code;
-    };
-
-    // Busca ou cria o arquivo de mapeamento
-    let linksFileId = null;
-    let linksData = {};
-    try {
-      const search = await gapi.client.drive.files.list({
-        q: `name='mc-links.json' and '${pastaRaizId}' in parents and trashed=false`,
-        fields: "files(id)"
-      });
-      if (search.result.files.length > 0) {
-        linksFileId = search.result.files[0].id;
-        // Lê o conteúdo
-        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${linksFileId}?alt=media`, {
-          headers: { "Authorization": `Bearer ${accessToken}` }
-        });
-        if (r.ok) linksData = await r.json();
-      }
-    } catch(e) { console.warn("Erro lendo mc-links.json:", e); }
-
-    // Verifica se este arquivo já tem código válido (reaproveita)
-    let codigo = null;
-    const UM_ANO_MS = 365 * 24 * 60 * 60 * 1000;
-    const agora = Date.now();
-    for (const [k, v] of Object.entries(linksData)) {
-      if (v.f === fileId) {
-        // Só reaproveita se não estiver expirado (menos de 1 ano)
-        const idade = agora - (v.t || 0);
-        if (idade < UM_ANO_MS) {
-          codigo = k;
-          break;
-        }
-      }
-    }
-
-    // Se não tem, cria um novo código único e limpa expirados
-    if (!codigo) {
-      // Remove links expirados (mais de 1 ano)
-      for (const k of Object.keys(linksData)) {
-        const idade = agora - (linksData[k].t || 0);
-        if (idade >= UM_ANO_MS) delete linksData[k];
-      }
-      do { codigo = gerarCodigo(); } while (linksData[codigo]);
-      linksData[codigo] = {
-        f: fileId,
-        m: mtlId || null,
-        e: ext,
-        n: obraAtiva.nome,
-        c: obraAtiva.cidade || "",
-        t: Date.now() // timestamp de criação (para expiração)
-      };
-
-      // Salva no Drive
-      const blob = new Blob([JSON.stringify(linksData)], { type: "application/json" });
-      const form = new FormData();
-      const metadata = linksFileId
-        ? {}
-        : { name: "mc-links.json", parents: [pastaRaizId], mimeType: "application/json" };
-      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-      form.append("file", blob);
-
-      const url = linksFileId
-        ? `https://www.googleapis.com/upload/drive/v3/files/${linksFileId}?uploadType=multipart`
-        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-      const method = linksFileId ? "PATCH" : "POST";
-
-      const saveRes = await fetch(url, {
-        method, body: form,
-        headers: { "Authorization": `Bearer ${accessToken}` }
-      });
-      const saveData = await saveRes.json();
-      if (!linksFileId) linksFileId = saveData.id;
-
-      // Torna o JSON público
-      await gapi.client.drive.permissions.create({
-        fileId: linksFileId,
-        resource: { role: "reader", type: "anyone" }
-      });
-    }
-
-    // Monta link curto
+    // Monta link longo direto com parâmetros (mais simples e estável)
     const base = window.location.origin + window.location.pathname.replace("index.html","").replace(/\/$/, "");
-    const finalLink = `${base}/viewer.html?c=${codigo}`;
+    const params = new URLSearchParams({
+      fileId,
+      ext,
+      nome: obraAtiva.nome,
+      cidade: obraAtiva.cidade || ""
+    });
+    if (mtlId) params.set("mtlId", mtlId);
+    const finalLink = `${base}/viewer.html?${params.toString()}`;
 
     document.getElementById("share-status").style.display = "none";
     document.getElementById("share-link-text").textContent = finalLink;
