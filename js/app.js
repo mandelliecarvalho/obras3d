@@ -429,19 +429,31 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   const w=wrap.clientWidth||800, h=wrap.clientHeight||500;
 
   threeScene=new THREE.Scene();
-  threeScene.background=new THREE.Color(0x3F3F3F);
+  // Background com gradiente vertical (studio profissional)
+  const bgCanvas = document.createElement("canvas");
+  bgCanvas.width = 2; bgCanvas.height = 256;
+  const bgCtx = bgCanvas.getContext("2d");
+  const grad = bgCtx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, "#5a5a5a");
+  grad.addColorStop(1, "#2a2a2a");
+  bgCtx.fillStyle = grad;
+  bgCtx.fillRect(0, 0, 2, 256);
+  const bgTex = new THREE.CanvasTexture(bgCanvas);
+  bgTex.encoding = THREE.sRGBEncoding;
+  threeScene.background = bgTex;
   threeCamera=new THREE.PerspectiveCamera(45,w/h,0.01,2000);
   threeRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
   threeRenderer.setSize(w,h);
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-  threeRenderer.shadowMap.enabled=false; // Desativado para evitar artefatos
+  threeRenderer.shadowMap.enabled = true;
+  threeRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   // ============================================================
   //  RENDERIZAÇÃO PROFISSIONAL — estilo Sketchfab / Google Model Viewer
   // ============================================================
   threeRenderer.outputEncoding = THREE.sRGBEncoding;
   threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-  threeRenderer.toneMappingExposure = 0.85;        // Levemente sub-exposto = cores mais ricas
+  threeRenderer.toneMappingExposure = 0.72;        // Levemente sub-exposto = cores mais ricas
   threeRenderer.physicallyCorrectLights = false;   // Modo clássico = controle direto da intensidade
   threeRenderer.sortObjects = true;
 
@@ -470,10 +482,31 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeScene.add(new THREE.AmbientLight(0xffffff, 0.35));
   // Hemisférica sutil (diferencia faces para cima/baixo)
   threeScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
-  // Key light forte (cria sombreamento, marca arestas)
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  // Key light com sombras reais projetadas
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
   keyLight.position.set(10, 18, 8);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.left = -20;
+  keyLight.shadow.camera.right = 20;
+  keyLight.shadow.camera.top = 20;
+  keyLight.shadow.camera.bottom = -20;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 80;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.normalBias = 0.02;
+  keyLight.shadow.radius = 4; // sombras suaves
   threeScene.add(keyLight);
+
+  // Plano invisível que apenas RECEBE sombras (faz sombras aparecerem no chão)
+  const shadowPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(80, 80),
+    new THREE.ShadowMaterial({ opacity: 0.35 })
+  );
+  shadowPlane.rotation.x = -Math.PI / 2;
+  shadowPlane.position.y = -0.01;
+  shadowPlane.receiveShadow = true;
+  threeScene.add(shadowPlane);
   // Fill light (preenche o lado oposto sem chapar)
   const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
   fillLight.position.set(-12, 6, -8);
@@ -583,24 +616,41 @@ function carregarModelo(url, ext, mtlUrl) {
       l.load(url,gltf=>{
         centralizarModelo(gltf.scene);
         threeScene.add(gltf.scene);
-        // Preserva PBR original do GLB — apenas garante encoding e dupla face
+        // Materiais PBR + sombras + contornos nas arestas (estilo arquitetônico pro)
         gltf.scene.traverse(c=>{
           if(c.isMesh){
             meshes.push(c);
+            // Sombras: cada mesh PROJETA e RECEBE
+            c.castShadow = true;
+            c.receiveShadow = true;
+
             const mats = Array.isArray(c.material) ? c.material : [c.material];
             mats.forEach(m => {
               if (!m) return;
               m.side = THREE.DoubleSide;
-              // Encoding sRGB nas texturas de cor (fundamental para cores corretas)
               if (m.map) { m.map.encoding = THREE.sRGBEncoding; m.map.needsUpdate = true; }
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
-              // CRÍTICO: reduz reflexão do environment para texturas dominarem visualmente
-              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.25;
-              // Controla brilho exagerado de materiais muito reflexivos
+              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.3;
               if (m.metalness !== undefined && m.metalness > 0.5) m.metalness = 0.3;
               if (m.roughness !== undefined && m.roughness < 0.4) m.roughness = 0.55;
               m.needsUpdate = true;
             });
+
+            // Contorno nas arestas (linha fina cinza escuro) — só onde há quebra de ângulo
+            try {
+              const edges = new THREE.EdgesGeometry(c.geometry, 25); // 25° threshold
+              const line = new THREE.LineSegments(
+                edges,
+                new THREE.LineBasicMaterial({
+                  color: 0x1a1a1a,
+                  transparent: true,
+                  opacity: 0.55,
+                  depthTest: true
+                })
+              );
+              line.userData.isOutline = true;
+              c.add(line);
+            } catch(_) {}
           }
         });
       },undefined,e=>console.error(e));

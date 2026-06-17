@@ -289,10 +289,23 @@ function init() {
 
   target = new THREE.Vector3(0, 0, 0);
   scene  = new THREE.Scene();
-  scene.background = new THREE.Color(0x3F3F3F);
+  // Background com gradiente vertical (studio profissional)
+  const bgCanvas = document.createElement("canvas");
+  bgCanvas.width = 2; bgCanvas.height = 256;
+  const bgCtx = bgCanvas.getContext("2d");
+  const grad = bgCtx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, "#5a5a5a");
+  grad.addColorStop(1, "#2a2a2a");
+  bgCtx.fillStyle = grad;
+  bgCtx.fillRect(0, 0, 2, 256);
+  const bgTex = new THREE.CanvasTexture(bgCanvas);
+  bgTex.encoding = THREE.sRGBEncoding;
+  scene.background = bgTex;
 
   camera = new THREE.PerspectiveCamera(45, w/h, 0.01, 2000);
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
@@ -301,7 +314,7 @@ function init() {
   // ============================================================
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.85;
+  renderer.toneMappingExposure = 0.72;
   renderer.physicallyCorrectLights = false;
 
   // Environment escuro/neutro — só dá vida sutil a materiais reflexivos
@@ -324,8 +337,30 @@ function init() {
   // Luzes diretas — esquema cinematográfico
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
   scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  keyLight.position.set(10, 18, 8); scene.add(keyLight);
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+  keyLight.position.set(10, 18, 8);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.left = -20;
+  keyLight.shadow.camera.right = 20;
+  keyLight.shadow.camera.top = 20;
+  keyLight.shadow.camera.bottom = -20;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 80;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.normalBias = 0.02;
+  keyLight.shadow.radius = 4;
+  scene.add(keyLight);
+
+  // Plano receptor de sombras (mostra sombras no chão)
+  const shadowPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(80, 80),
+    new THREE.ShadowMaterial({ opacity: 0.35 })
+  );
+  shadowPlane.rotation.x = -Math.PI / 2;
+  shadowPlane.position.y = -0.01;
+  shadowPlane.receiveShadow = true;
+  scene.add(shadowPlane);
   const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
   fillLight.position.set(-12, 6, -8); scene.add(fillLight);
   const rimLight = new THREE.DirectionalLight(0xffffff, 0.35);
@@ -447,16 +482,32 @@ async function carregarModelo(fId, ext, mtlFId) {
           if (c.isMesh) {
             meshes.push(c);
             const mats = Array.isArray(c.material) ? c.material : [c.material];
+            // Sombras: projeta e recebe
+            c.castShadow = true;
+            c.receiveShadow = true;
+
             mats.forEach(m => {
               if (!m) return;
               m.side = THREE.DoubleSide;
               if (m.map) { m.map.encoding = THREE.sRGBEncoding; m.map.needsUpdate = true; }
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
-              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.25;
+              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.3;
               if (m.metalness !== undefined && m.metalness > 0.5) m.metalness = 0.3;
               if (m.roughness !== undefined && m.roughness < 0.4) m.roughness = 0.55;
               m.needsUpdate = true;
             });
+
+            // Contorno sutil nas arestas (estilo arquitetônico)
+            try {
+              const edges = new THREE.EdgesGeometry(c.geometry, 25);
+              const line = new THREE.LineSegments(
+                edges,
+                new THREE.LineBasicMaterial({
+                  color: 0x1a1a1a, transparent: true, opacity: 0.55, depthTest: true
+                })
+              );
+              c.add(line);
+            } catch(_) {}
           }
         });
       });
