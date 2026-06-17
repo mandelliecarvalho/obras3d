@@ -453,7 +453,7 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   // ============================================================
   threeRenderer.outputEncoding = THREE.sRGBEncoding;
   threeRenderer.toneMapping = THREE.LinearToneMapping;
-  threeRenderer.toneMappingExposure = 0.85;        // Levemente sub-exposto = cores mais ricas
+  threeRenderer.toneMappingExposure = 0.65;        // Levemente sub-exposto = cores mais ricas
   threeRenderer.physicallyCorrectLights = false;   // Modo clássico = controle direto da intensidade
   threeRenderer.sortObjects = true;
 
@@ -479,11 +479,11 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
 
   // LUZES DIRETAS — fazem o trabalho real de iluminar (esquema cinematográfico)
   // Ambient baixo (preserva contraste das sombras)
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
   // Hemisférica sutil (diferencia faces para cima/baixo)
-  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.25));
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.35));
   // Key light com sombras reais projetadas
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.75);
   keyLight.position.set(10, 18, 8);
   keyLight.castShadow = false;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -508,11 +508,11 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   shadowPlane.receiveShadow = true;
   threeScene.add(shadowPlane);
   // Fill light (preenche o lado oposto sem chapar)
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.55);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
   fillLight.position.set(-12, 6, -8);
   threeScene.add(fillLight);
-  // Rim light forte (separa modelo do fundo, destaca contornos)
-  const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
+  // Rim light suave (separa modelo do fundo)
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.25);
   rimLight.position.set(0, 4, -15);
   threeScene.add(rimLight);
 

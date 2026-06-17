@@ -322,7 +322,7 @@ function init() {
   // ============================================================
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = isMobile ? 0.9 : 0.85;
+  renderer.toneMappingExposure = isMobile ? 0.7 : 0.65;
   renderer.physicallyCorrectLights = false;
 
   // Environment otimizado (igual mobile/desktop)
@@ -343,9 +343,9 @@ function init() {
   pmremGen.dispose();
 
   // Luzes diretas — esquema cinematográfico
-  scene.add(new THREE.AmbientLight(0xffffff, isMobile ? 0.4 : 0.25));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, isMobile ? 0.35 : 0.25));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+  scene.add(new THREE.AmbientLight(0xffffff, isMobile ? 0.65 : 0.55));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, isMobile ? 0.45 : 0.35));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.75);
   keyLight.position.set(10, 18, 8);
   keyLight.castShadow = false;
   // Desktop: shadow 2K (máxima nitidez) | Mobile: 1K (otimizado)
@@ -370,9 +370,9 @@ function init() {
   shadowPlane.position.y = -0.01;
   shadowPlane.receiveShadow = true;
   scene.add(shadowPlane);
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.55);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
   fillLight.position.set(-12, 6, -8); scene.add(fillLight);
-  const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.25);
   rimLight.position.set(0, 4, -15); scene.add(rimLight);
   scene.add(new THREE.GridHelper(50, 50, 0x4A4A4A, 0x555555));
 
