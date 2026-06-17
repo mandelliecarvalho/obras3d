@@ -452,8 +452,8 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   //  RENDERIZAÇÃO PROFISSIONAL — estilo Sketchfab / Google Model Viewer
   // ============================================================
   threeRenderer.outputEncoding = THREE.sRGBEncoding;
-  threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-  threeRenderer.toneMappingExposure = 0.65;        // Levemente sub-exposto = cores mais ricas
+  threeRenderer.toneMapping = THREE.CineonToneMapping;
+  threeRenderer.toneMappingExposure = 1.0;        // Levemente sub-exposto = cores mais ricas
   threeRenderer.physicallyCorrectLights = false;   // Modo clássico = controle direto da intensidade
   threeRenderer.sortObjects = true;
 
@@ -637,9 +637,9 @@ function carregarModelo(url, ext, mtlUrl) {
                 todasTexturas.push(m.map);
               }
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
-              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.3;
-              if (m.metalness !== undefined && m.metalness > 0.5) m.metalness = 0.3;
-              if (m.roughness !== undefined && m.roughness < 0.4) m.roughness = 0.55;
+              // PRESERVA metalness/roughness do SketchUp (não desnatura cores)
+              // Environment contribui muito pouco — cores ficam vibrantes
+              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.12;
               m.needsUpdate = true;
             });
 

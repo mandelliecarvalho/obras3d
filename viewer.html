@@ -321,8 +321,8 @@ function init() {
   //  RENDERIZAÇÃO PROFISSIONAL — estilo Sketchfab / Google Model Viewer
   // ============================================================
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = isMobile ? 0.75 : 0.65;
+  renderer.toneMapping = THREE.CineonToneMapping;
+  renderer.toneMappingExposure = isMobile ? 1.05 : 1.0;
   renderer.physicallyCorrectLights = false;
 
   // Environment otimizado (igual mobile/desktop)
@@ -559,9 +559,9 @@ async function carregarModelo(fId, ext, mtlFId) {
               }
               if (m.map) { m.map.encoding = THREE.sRGBEncoding; m.map.needsUpdate = true; }
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
-              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.3;
-              if (m.metalness !== undefined && m.metalness > 0.5) m.metalness = 0.3;
-              if (m.roughness !== undefined && m.roughness < 0.4) m.roughness = 0.55;
+              // PRESERVA metalness/roughness do SketchUp (não desnatura cores)
+              // Environment contribui muito pouco — cores ficam vibrantes
+              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.12;
               m.needsUpdate = true;
             });
 
