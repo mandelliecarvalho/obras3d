@@ -445,15 +445,15 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   threeRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
   threeRenderer.setSize(w,h);
   threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-  threeRenderer.shadowMap.enabled = true;
+  threeRenderer.shadowMap.enabled = false;
   threeRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   // ============================================================
   //  RENDERIZAÇÃO PROFISSIONAL — estilo Sketchfab / Google Model Viewer
   // ============================================================
   threeRenderer.outputEncoding = THREE.sRGBEncoding;
-  threeRenderer.toneMapping = THREE.CineonToneMapping;
-  threeRenderer.toneMappingExposure = 1.0;        // Levemente sub-exposto = cores mais ricas
+  threeRenderer.toneMapping = THREE.LinearToneMapping;
+  threeRenderer.toneMappingExposure = 0.85;        // Levemente sub-exposto = cores mais ricas
   threeRenderer.physicallyCorrectLights = false;   // Modo clássico = controle direto da intensidade
   threeRenderer.sortObjects = true;
 
@@ -485,7 +485,7 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   // Key light com sombras reais projetadas
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
   keyLight.position.set(10, 18, 8);
-  keyLight.castShadow = true;
+  keyLight.castShadow = false;
   keyLight.shadow.mapSize.set(2048, 2048);
   keyLight.shadow.camera.left = -20;
   keyLight.shadow.camera.right = 20;
@@ -639,7 +639,7 @@ function carregarModelo(url, ext, mtlUrl) {
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
               // PRESERVA metalness/roughness do SketchUp (não desnatura cores)
               // Environment contribui muito pouco — cores ficam vibrantes
-              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.12;
+              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.0;
               m.needsUpdate = true;
             });
 

@@ -310,7 +310,7 @@ function init() {
 
   camera = new THREE.PerspectiveCamera(45, w/h, 0.01, 2000);
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = false;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   // Desktop: PixelRatio 2 (máxima qualidade) | Mobile: 1.5 (otimizado)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
@@ -321,8 +321,8 @@ function init() {
   //  RENDERIZAÇÃO PROFISSIONAL — estilo Sketchfab / Google Model Viewer
   // ============================================================
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.CineonToneMapping;
-  renderer.toneMappingExposure = isMobile ? 1.05 : 1.0;
+  renderer.toneMapping = THREE.LinearToneMapping;
+  renderer.toneMappingExposure = isMobile ? 0.9 : 0.85;
   renderer.physicallyCorrectLights = false;
 
   // Environment otimizado (igual mobile/desktop)
@@ -347,7 +347,7 @@ function init() {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, isMobile ? 0.35 : 0.25));
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
   keyLight.position.set(10, 18, 8);
-  keyLight.castShadow = true;
+  keyLight.castShadow = false;
   // Desktop: shadow 2K (máxima nitidez) | Mobile: 1K (otimizado)
   keyLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
   keyLight.shadow.camera.left = -20;
@@ -561,7 +561,7 @@ async function carregarModelo(fId, ext, mtlFId) {
               if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
               // PRESERVA metalness/roughness do SketchUp (não desnatura cores)
               // Environment contribui muito pouco — cores ficam vibrantes
-              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.12;
+              if (m.envMapIntensity !== undefined) m.envMapIntensity = 0.0;
               m.needsUpdate = true;
             });
 

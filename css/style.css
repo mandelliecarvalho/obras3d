@@ -1005,3 +1005,9 @@ body.ios-fullscreen-active {
   }
 }
 
+
+
+/* Filtro de saturação para visualizador 3D — cores vibrantes */
+#three-canvas, .viewer-canvas, canvas.three-canvas {
+  filter: saturate(1.35) contrast(1.08);
+}
