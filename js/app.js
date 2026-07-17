@@ -1088,3 +1088,110 @@ function destruirViewer(){
   const ctrl=document.getElementById("viewer-controls");if(ctrl)ctrl.style.display="none";
   const lbl=document.getElementById("viewer-label");if(lbl)lbl.style.display="none";
 }
+
+
+// ============================================================
+// UPLOAD DE ARQUIVOS 3D PARA O DRIVE
+// ============================================================
+window.abrirUpload = () => {
+  if (!obraAtiva) {
+    alert("Selecione uma obra primeiro.");
+    return;
+  }
+  const modal = document.getElementById("modal-upload");
+  if (modal) {
+    modal.style.display = "flex";
+    // Reset visual do modal
+    const err = document.getElementById("upload-error");
+    if (err) { err.style.display = "none"; err.textContent = ""; }
+    const prog = document.getElementById("upload-progress");
+    if (prog) prog.style.display = "none";
+    const input = document.getElementById("file-input");
+    if (input) input.value = "";
+  }
+};
+
+window.fecharUpload = (event) => {
+  // Se clicou fora da caixa, fecha (event vindo do overlay); senão sempre fecha
+  if (event && event.target && !event.target.classList.contains("modal-overlay")) return;
+  const modal = document.getElementById("modal-upload");
+  if (modal) modal.style.display = "none";
+};
+
+window.handleFileSelect = (event) => {
+  const files = event.target.files;
+  if (files && files.length > 0) enviarArquivos(files);
+};
+
+window.handleDrop = (event) => {
+  event.preventDefault();
+  const zone = document.getElementById("upload-zone");
+  if (zone) zone.classList.remove("drag");
+  const files = event.dataTransfer.files;
+  if (files && files.length > 0) enviarArquivos(files);
+};
+
+async function enviarArquivos(files) {
+  if (!obraAtiva || !accessToken) {
+    alert("Erro: obra ou autenticação inválida.");
+    return;
+  }
+
+  const progWrap = document.getElementById("upload-progress");
+  const progFill = document.getElementById("progress-fill");
+  const progLabel = document.getElementById("progress-label");
+  const errBox = document.getElementById("upload-error");
+  const zone = document.getElementById("upload-zone");
+
+  if (errBox) { errBox.style.display = "none"; errBox.textContent = ""; }
+  if (progWrap) progWrap.style.display = "block";
+  if (zone) zone.style.pointerEvents = "none";
+
+  try {
+    let total = files.length, feitos = 0;
+    for (const file of files) {
+      if (progLabel) progLabel.textContent = `Enviando ${feitos+1}/${total}: ${file.name}`;
+      if (progFill) progFill.style.width = `${(feitos/total)*100}%`;
+
+      const metadata = {
+        name: file.name,
+        parents: [obraAtiva.driveId]
+      };
+      const form = new FormData();
+      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      form.append("file", file);
+
+      const res = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+        {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}` },
+          body: form
+        }
+      );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `Erro HTTP ${res.status}`);
+      }
+      feitos++;
+    }
+
+    if (progFill) progFill.style.width = "100%";
+    if (progLabel) progLabel.textContent = `${feitos} arquivo(s) enviado(s) com sucesso!`;
+
+    // Fecha o modal e recarrega a lista de arquivos
+    setTimeout(() => {
+      fecharUpload({ target: { classList: { contains: () => true } } });
+      carregarArquivos();
+    }, 800);
+  } catch (e) {
+    console.error("Erro no upload:", e);
+    if (errBox) {
+      errBox.style.display = "block";
+      errBox.textContent = "Erro ao enviar: " + (e.message || "tente novamente");
+    }
+    if (progWrap) progWrap.style.display = "none";
+  } finally {
+    if (zone) zone.style.pointerEvents = "auto";
+  }
+}
