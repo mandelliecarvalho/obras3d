@@ -453,7 +453,7 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
   // ============================================================
   threeRenderer.outputEncoding = THREE.sRGBEncoding;
   threeRenderer.toneMapping = THREE.LinearToneMapping;
-  threeRenderer.toneMappingExposure = 0.65;        // Levemente sub-exposto = cores mais ricas
+  threeRenderer.toneMappingExposure = 0.58;        // Levemente sub-exposto = cores mais ricas
   threeRenderer.physicallyCorrectLights = false;   // Modo clássico = controle direto da intensidade
   threeRenderer.sortObjects = true;
 
@@ -479,9 +479,9 @@ function iniciarViewer(url, ext, nome, mtlUrl) {
 
   // LUZES DIRETAS — fazem o trabalho real de iluminar (esquema cinematográfico)
   // Ambient baixo (preserva contraste das sombras)
-  threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.45));
   // Hemisférica sutil (diferencia faces para cima/baixo)
-  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.35));
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a3a, 0.30));
   // Key light com sombras reais projetadas
   const keyLight = new THREE.DirectionalLight(0xffffff, 0.75);
   keyLight.position.set(10, 18, 8);

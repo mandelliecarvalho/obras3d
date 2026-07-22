@@ -322,7 +322,7 @@ function init() {
   // ============================================================
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = isMobile ? 0.7 : 0.65;
+  renderer.toneMappingExposure = isMobile ? 0.52 : 0.58;
   renderer.physicallyCorrectLights = false;
 
   // Environment otimizado (igual mobile/desktop)
@@ -343,8 +343,8 @@ function init() {
   pmremGen.dispose();
 
   // Luzes diretas — esquema cinematográfico
-  scene.add(new THREE.AmbientLight(0xffffff, isMobile ? 0.65 : 0.55));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, isMobile ? 0.45 : 0.35));
+  scene.add(new THREE.AmbientLight(0xffffff, isMobile ? 0.38 : 0.45));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a3a, isMobile ? 0.26 : 0.30));
   const keyLight = new THREE.DirectionalLight(0xffffff, 0.75);
   keyLight.position.set(10, 18, 8);
   keyLight.castShadow = false;
