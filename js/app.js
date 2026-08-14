@@ -9,7 +9,7 @@ const SCOPES = [
 ].join(" ");
 
 const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest";
-const CIDADES = ["Maringá", "Porto Rico"];
+const CIDADES = ["Maringá", "Porto Rico", "Sarandi"];
 
 let gapiInited = false;
 let gisInited = false;
@@ -807,6 +807,21 @@ window.toggleAutoRotate=()=>{autoRotate=!autoRotate;document.getElementById("btn
 let isFakeFullscreen = false;
 
 
+
+// ============================================================
+// EXCLUIR ARQUIVO DO DRIVE
+// ============================================================
+window.excluirArquivo = async (fileId, nome) => {
+  if (!confirm(`Excluir o arquivo "${nome}"?\n\nEsta ação não pode ser desfeita.`)) return;
+  try {
+    await gapi.client.drive.files.delete({ fileId: fileId });
+    // Se o arquivo excluído estava sendo visualizado, limpa o viewer
+    carregarArquivos();
+  } catch (e) {
+    console.error("Erro ao excluir:", e);
+    alert("Erro ao excluir o arquivo. Tente novamente.");
+  }
+};
 
 // ============================================================
 // COMPARTILHAMENTO — Gera link público do visualizador
